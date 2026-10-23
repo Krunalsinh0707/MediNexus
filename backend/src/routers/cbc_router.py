@@ -5,6 +5,7 @@ import os
 import shutil
 import json
 import logging
+from pathlib import Path
 
 from src.database import get_db_connection
 from src.auth import get_current_user
@@ -16,6 +17,11 @@ from src.security.file_security import validate_uploaded_file, sanitize_filename
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CBC Analysis"])
+
+
+def _cbc_upload_directory() -> Path:
+    default_root = Path(__file__).resolve().parents[2] / "uploads"
+    return Path(os.getenv("HMS_UPLOAD_ROOT", default_root)).resolve()
 
 class ManualCbcInput(BaseModel):
     Hemoglobin: Optional[float] = None
@@ -46,14 +52,17 @@ async def upload_cbc_report(
     content = await validate_uploaded_file(file, max_size_bytes=10 * 1024 * 1024)
     safe_filename = sanitize_filename(file.filename, prefix=f"cbc_{current_user.user_id}_")
 
-    os.makedirs("uploads", exist_ok=True)
-    file_path = os.path.join("uploads", safe_filename)
+    upload_directory = _cbc_upload_directory()
+    upload_directory.mkdir(parents=True, exist_ok=True)
+    file_path = upload_directory / safe_filename
 
-    with open(file_path, "wb") as buffer:
-        buffer.write(content)
-
-    cbc_data = extract_cbc_from_file(file_path)
-    interpretation = interpret_cbc(cbc_data)
+    try:
+        file_path.write_bytes(content)
+        cbc_data = extract_cbc_from_file(str(file_path))
+        interpretation = interpret_cbc(cbc_data)
+    except Exception:
+        file_path.unlink(missing_ok=True)
+        raise
     
     # Auto-index extracted CBC document into ChromaDB vector store for RAG
     try:

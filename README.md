@@ -140,7 +140,7 @@
 ## 📁 Project Architecture
 
 ```
-Hospital-Management-System-with-Chatbot/
+MediNexus/
 ├── backend/
 │   ├── src/
 │   │   ├── api.py                      # FastAPI entry point, CORS & security middlewares
@@ -239,8 +239,8 @@ This repository includes a precomputed, comprehensive **Graphify Code Knowledge 
 Clone the repository and copy the environment template:
 
 ```bash
-git clone https://github.com/Krunalsinh0707/Hospital-Management-System-with-Chatbot.git
-cd Hospital-Management-System-with-Chatbot
+git clone https://github.com/Krunalsinh0707/MediNexus MediNexus
+cd MediNexus
 
 # Create backend .env
 cp .env.example backend/.env
@@ -254,13 +254,7 @@ SECRET_KEY=YOUR_SECURE_RANDOM_SECRET_KEY_MIN_32_CHARS
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# Database Configuration (PostgreSQL)
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_USER=health_analyzer_user
-DB_PASS=admin
-DB_NAME=health_analyzer
-DATABASE_URL=postgresql+psycopg://health_analyzer_user:admin@127.0.0.1:5432/health_analyzer
+# PostgreSQL URL is supplied separately as HMS_DATABASE_URL in the process environment.
 
 # Google Gemini API
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -277,13 +271,11 @@ SMTP_PASSWORD=your-google-app-password
 
 ### 2. Database Configuration
 
-Create the database in PostgreSQL:
-
-```sql
-CREATE DATABASE health_analyzer;
-CREATE USER health_analyzer_user WITH ENCRYPTED PASSWORD 'admin';
-GRANT ALL PRIVILEGES ON DATABASE health_analyzer TO health_analyzer_user;
-```
+The local `medinexus` database is provisioned separately. Set
+`HMS_DATABASE_URL` explicitly for local development; deployments must supply
+their own URL. Do not use the old `DATABASE_URL` or `DB_*` settings. See
+[`backend/docs/module_database_foundation.md`](backend/docs/module_database_foundation.md)
+for the guarded initialization steps. Never bootstrap a populated database.
 
 ---
 
@@ -303,11 +295,10 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run database migrations
-alembic upgrade head
-
-# Seed clinical doctors (Creates 28 doctors across 14 departments)
-python seed_test_doctors.py
+# Initialize an authorized, confirmed-empty medinexus database using the
+# guarded fresh bootstrap described in backend/docs/module_database_foundation.md.
+# For an existing model-shaped a8b9c0d1e2f3 database, assess the additive
+# upgrade separately; do not run the historical chain on an unknown schema.
 
 # Launch development server
 uvicorn src.api:app --reload --port 8000
@@ -337,7 +328,8 @@ npm run dev
 
 ### 5. Docker Compose Deployment
 
-To launch the complete application stack (PostgreSQL + FastAPI + Nginx Frontend):
+To launch FastAPI and the Nginx frontend against a separately provisioned
+PostgreSQL database, set a deployment-specific `HMS_DATABASE_URL` first:
 
 ```bash
 # Build and run all services in background
@@ -346,7 +338,7 @@ docker-compose up -d --build
 
 - **Web Portal (Nginx)**: `http://localhost`
 - **API Server**: `http://localhost:8000`
-- **PostgreSQL**: `localhost:5432`
+Docker Compose does not create or select a database by default.
 
 ---
 
@@ -354,11 +346,11 @@ docker-compose up -d --build
 
 ### 1. Hospital Administrator
 - **Email**: `admin@gmail.com`
-- **Password**: `Admin@123`
+- **Password**: supplied by the local operator
 - **Portal**: `/admin/login`
 
 ### 2. Clinical Doctors (28 Pre-Seeded Accounts)
-All 28 seeded doctors share the standard development password: **`Abc@123`**
+Use operator-provided credentials for development doctor accounts.
 
 | Department | Sample Doctor | Email |
 | :--- | :--- | :--- |

@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import clinicalChatService from '../../services/clinicalChatService';
 import api from '../../services/api';
+import { clinicalWriteError } from '../clinicalWriteErrors';
 
 const QUICK_CLINICAL_TEMPLATES = [
   "I have reviewed your message and clinical findings. Vital signs appear stable. Continue current medications.",
@@ -184,7 +185,7 @@ export default function ClinicalChatConsole() {
       await fetchInbox(true);
       showToast("Clinical response delivered to patient.");
     } catch (err) {
-      showToast("Failed to send clinical response.");
+      showToast(clinicalWriteError(err, 'chat'));
     } finally {
       setSendingReply(false);
     }
@@ -204,7 +205,7 @@ export default function ClinicalChatConsole() {
       await fetchConversationDetail(selectedConvId);
       await fetchInbox(true);
     } catch (err) {
-      showToast("Failed to reassign consultation.");
+      showToast(clinicalWriteError(err, 'chat'));
     } finally {
       setActionLoading(false);
     }
@@ -224,7 +225,7 @@ export default function ClinicalChatConsole() {
       await fetchConversationDetail(selectedConvId);
       await fetchInbox(true);
     } catch (err) {
-      showToast("Failed to escalate consultation.");
+      showToast(clinicalWriteError(err, 'chat'));
     } finally {
       setActionLoading(false);
     }
@@ -242,7 +243,7 @@ export default function ClinicalChatConsole() {
       await fetchConversationDetail(selectedConvId);
       await fetchInbox(true);
     } catch (err) {
-      showToast("Failed to resolve consultation.");
+      showToast(clinicalWriteError(err, 'chat'));
     } finally {
       setActionLoading(false);
     }
@@ -838,9 +839,10 @@ export default function ClinicalChatConsole() {
                   <select
                     value={targetDoctorId}
                     onChange={(e) => setTargetDoctorId(e.target.value)}
+                    required
                     className="w-full p-2 border border-slate-200 rounded-lg text-xs"
                   >
-                    <option value="">-- Keep Current Assigned Doctor --</option>
+                    <option value="">-- Select an active clinician --</option>
                     {doctorsList.map(doc => (
                       <option key={doc.id} value={doc.id}>
                         {doc.full_name || `Dr. #${doc.id}`} ({doc.specialization})

@@ -3,6 +3,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
+from fastapi import HTTPException
+from src.encounter_service import refuse_linked_appointment_change
 
 from src.models import (
     User, Doctor, Department, Appointment,
@@ -245,7 +247,7 @@ def create_report_review_request(
     """
     try:
         # 1. Validate report ownership
-        report = db.query(MedicalReport).filter(MedicalReport.id == report_id).first()
+        report = db.query(MedicalReport).filter(MedicalReport.id == report_id).with_for_update().populate_existing().first()
         if not report:
             return {
                 "success": False,
@@ -261,6 +263,13 @@ def create_report_review_request(
                 "message": "You can only submit reports that belong to your account."
             }
 
+        if db.query(DoctorReview.id).filter(DoctorReview.report_id == report.id).first():
+            return {
+                "success": False,
+                "error": "ALREADY_REVIEWED",
+                "message": "This report already has a signed review; revisions need a separate clinical workflow."
+            }
+
         # 2. Determine target doctor
         target_doctor_id = doctor_id or report.doctor_id
         if not target_doctor_id:
@@ -271,27 +280,29 @@ def create_report_review_request(
                 "message": "This report does not have an assigned physician. Please select a doctor or department to route your review request."
             }
 
-        doctor = db.query(Doctor).filter(Doctor.id == target_doctor_id).first()
-        if not doctor or doctor.status != "Active":
+        doctor = db.query(Doctor).join(User, User.id == Doctor.user_id).filter(
+            Doctor.id == target_doctor_id, Doctor.status == "Active",
+            User.role.in_(("doctor", "emergency_doctor")), User.password_hash.is_not(None),
+        ).first()
+        if not doctor:
             return {
                 "success": False,
                 "error": "DOCTOR_UNAVAILABLE",
-                "message": "The requested physician is currently unavailable or inactive."
+                "message": "The requested physician must have an active profile and account."
             }
 
         # 3. Check for existing pending review request
         existing_req = db.query(ReportReviewRequest).filter(
             ReportReviewRequest.report_id == report.id,
-            ReportReviewRequest.status == "PENDING"
+            ReportReviewRequest.status.in_(("PENDING", "IN_REVIEW"))
         ).first()
 
         if existing_req:
-            doc_name = f"Dr. {doctor.user.full_name}" if doctor.user else "your physician"
             return {
                 "success": True,
                 "already_pending": True,
                 "request_id": existing_req.id,
-                "message": f"Report '{report.report_title}' has already been submitted to {doc_name} and is currently pending review."
+                "message": f"Report '{report.report_title}' already has an active review request."
             }
 
         # 4. Create new ReportReviewRequest
@@ -580,7 +591,7 @@ def cancel_patient_appointment(
     Strictly verifies patient ownership and status transition rules.
     """
     try:
-        app = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+        app = db.query(Appointment).filter(Appointment.id == appointment_id).with_for_update().populate_existing().first()
         if not app:
             return {
                 "success": False,
@@ -611,6 +622,7 @@ def cancel_patient_appointment(
                 "message": f"Cannot cancel an appointment that is already {app.status.lower()}."
             }
 
+        refuse_linked_appointment_change(db, app.id)
         app.status = "CANCELLED"
 
         # Notify doctor
@@ -633,6 +645,9 @@ def cancel_patient_appointment(
             "status": "CANCELLED",
             "message": f"Your appointment #{app.id} on {app.appointment_date.strftime('%Y-%m-%d')} at {app.time_slot} has been successfully cancelled."
         }
+    except HTTPException as exc:
+        db.rollback()
+        return {"success": False, "error": "VISIT_WORKFLOW_REQUIRED", "message": exc.detail}
     except Exception as e:
         db.rollback()
         logger.error(f"Error cancelling appointment {appointment_id} for patient {patient_id}: {e}", exc_info=True)
@@ -655,7 +670,7 @@ def reschedule_patient_appointment(
     Verifies ownership, status, and new slot availability before committing.
     """
     try:
-        app = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+        app = db.query(Appointment).filter(Appointment.id == appointment_id).with_for_update().populate_existing().first()
         if not app:
             return {
                 "success": False,
@@ -677,6 +692,7 @@ def reschedule_patient_appointment(
                 "message": f"Cannot reschedule an appointment that is {app.status.lower()}."
             }
 
+        refuse_linked_appointment_change(db, app.id)
         # Check new slot availability
         avail_res = check_appointment_availability(db, app.doctor_id, new_date)
         if not avail_res.get("success"):
@@ -726,6 +742,9 @@ def reschedule_patient_appointment(
             "new_time_slot": matching_slot,
             "message": f"Appointment #{app.id} successfully rescheduled to {new_date.strftime('%Y-%m-%d')} at {matching_slot} with {doc_name}."
         }
+    except HTTPException as exc:
+        db.rollback()
+        return {"success": False, "error": "VISIT_WORKFLOW_REQUIRED", "message": exc.detail}
     except Exception as e:
         db.rollback()
         logger.error(f"Error rescheduling appointment {appointment_id}: {e}", exc_info=True)

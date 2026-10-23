@@ -2,6 +2,7 @@ import re
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from src.database import get_db
 from src.models import User, PasswordResetOTP
@@ -54,7 +55,10 @@ async def forgot_password(
     email_clean = req.email.lower().strip()
 
     # 1. Check if user exists in database
-    user = db.query(User).filter(User.email == email_clean).first()
+    user = db.query(User).filter(
+        func.lower(func.btrim(User.email)) == email_clean,
+        User.password_hash.is_not(None),
+    ).first()
     if not user:
         return PasswordResetResponse(success=False, message="Email not registered")
 
@@ -99,6 +103,13 @@ async def verify_otp(
     email_clean = req.email.lower().strip()
     otp_clean = req.otp.strip()
 
+    eligible_user = db.query(User.id).filter(
+        func.lower(func.btrim(User.email)) == email_clean,
+        User.password_hash.is_not(None),
+    ).first()
+    if not eligible_user:
+        return PasswordResetResponse(success=False, message="Email not registered")
+
     ok, msg = otp_service.verify_otp_for_email(db, email_clean, otp_clean)
     if not ok:
         return PasswordResetResponse(success=False, message=msg)
@@ -137,7 +148,10 @@ async def reset_password(
     new_pw_hash = get_password_hash(req.password)
 
     # 5. Update user in MySQL database
-    user = db.query(User).filter(User.email == email_clean).first()
+    user = db.query(User).filter(
+        func.lower(func.btrim(User.email)) == email_clean,
+        User.password_hash.is_not(None),
+    ).first()
     if not user:
         return PasswordResetResponse(success=False, message="Email not registered")
 

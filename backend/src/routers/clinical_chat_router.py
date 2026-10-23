@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, desc
+from sqlalchemy import or_, and_, desc, exists, select
 from typing import Optional, List
 from datetime import datetime
 
@@ -10,7 +10,7 @@ from src.models import (
     User, Doctor, Department,
     ClinicalConversation, ClinicalMessage, ClinicalAssignment,
     ClinicalAlert, ClinicalAIAnalysis, ClinicalEvent,
-    ClinicalRoutingRule, DoctorDepartmentMembership
+    ClinicalRoutingRule, DoctorDepartmentMembership, AuditLog
 )
 from src.schemas.clinical_chat import (
     CreateConversationRequest, SendMessageRequest,
@@ -31,6 +31,11 @@ from src.clinical_chat.access_policy import (
 from src.clinical_chat.orchestration import orchestrator
 
 router = APIRouter(prefix="/clinical-chat", tags=["Clinical Chat Subsystem"])
+
+
+def _require_hospital_admin(current_user: TokenData) -> None:
+    if (current_user.role or "").lower() not in {"admin", "hospital_admin"}:
+        raise HTTPException(status_code=403, detail="Hospital administrator authorization required")
 
 
 def _format_message(msg: ClinicalMessage) -> ClinicalMessageResponse:
@@ -102,9 +107,15 @@ def get_my_conversations(
     """
     Patient retrieves list of own consultations.
     """
+    hidden = exists(select(ClinicalEvent.id).where(
+        ClinicalEvent.conversation_id == ClinicalConversation.id,
+        ClinicalEvent.event_type == "PATIENT_HIDDEN",
+        ClinicalEvent.actor_user_id == current_user.user_id,
+    ))
     convs = (
         db.query(ClinicalConversation)
         .filter(ClinicalConversation.patient_id == current_user.user_id)
+        .filter(or_(ClinicalConversation.status != "RESOLVED", ~hidden))
         .order_by(ClinicalConversation.updated_at.desc())
         .all()
     )
@@ -138,23 +149,27 @@ def delete_patient_conversation(
     db: Session = Depends(get_db),
     current_user: TokenData = Depends(get_current_user)
 ):
-    """
-    Allows a patient to delete their own consultation thread.
-    """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    """Hide a resolved consultation from its patient's list; retain all clinical records."""
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     user_role = (current_user.role or "").lower()
-    if user_role in ["patient", "user"]:
-        if not can_patient_access_conversation(conv, current_user.user_id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    elif user_role not in ["admin", "hospital_admin"]:
+    if user_role not in ["patient", "user"] or not can_patient_access_conversation(conv, current_user.user_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    db.delete(conv)
+    if conv.status != "RESOLVED":
+        raise HTTPException(status_code=409, detail="Only resolved consultations can be hidden; clinical history is retained")
+    previous = db.query(ClinicalEvent.id).filter(
+        ClinicalEvent.conversation_id == conv.id,
+        ClinicalEvent.event_type == "PATIENT_HIDDEN",
+        ClinicalEvent.actor_user_id == current_user.user_id,
+    ).first()
+    if previous:
+        return {"message": "Conversation is already hidden; clinical history is retained", "id": conversation_id, "hidden": True}
+    db.add(ClinicalEvent(conversation_id=conv.id, actor_user_id=current_user.user_id,
+                         event_type="PATIENT_HIDDEN", reason="Patient hid resolved consultation from list"))
     db.commit()
-    return {"message": "Conversation deleted successfully", "id": conversation_id}
+    return {"message": "Conversation hidden from your list; clinical history is retained", "id": conversation_id, "hidden": True}
 
 
 @router.get("/doctors/{doctor_id}/availability")
@@ -313,9 +328,11 @@ def post_conversation_message(
     If sent by patient: runs classification, routing, and assistant reply.
     If sent by clinician: records doctor reply and notifies patient.
     """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().populate_existing().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    if conv.status == "RESOLVED":
+        raise HTTPException(status_code=409, detail="Resolved conversations cannot receive messages")
 
     user_role = (current_user.role or "").lower()
 
@@ -334,6 +351,8 @@ def post_conversation_message(
         if not can_doctor_modify_conversation(db, conv, current_user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized for this conversation")
 
+        db.add(AuditLog(user_id=current_user.user_id, action="clinical_chat_reply",
+                        details={"conversation_id": conv.id}))
         doc_msg = orchestrator.process_doctor_reply(
             db=db,
             conversation=conv,
@@ -373,7 +392,7 @@ def get_doctor_inbox(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor profile not found")
 
     authorized_depts = get_authorized_department_ids_for_doctor(db, doctor)
-    is_emergency_role = (current_user.role or "").lower() == "emergency_doctor"
+    is_emergency_role = doctor.user.role == "emergency_doctor"
 
     query = db.query(ClinicalConversation)
 
@@ -500,13 +519,17 @@ def acknowledge_alert(
     """
     Clinician acknowledges an active clinical alert.
     """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().populate_existing().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    if not can_doctor_modify_conversation(db, conv, current_user, "acknowledge"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
+    if conv.escalation_status != "PENDING_ACK":
+        raise HTTPException(status_code=409, detail="Only a pending alert can be acknowledged")
 
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_alert_acknowledged",
+                    details={"conversation_id": conv.id}))
     updated = orchestrator.acknowledge_alert(
         db=db,
         conversation=conv,
@@ -530,13 +553,36 @@ def assign_conversation(
     """
     Assigns or transfers a conversation to a specific doctor or department.
     """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().populate_existing().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    if not can_doctor_modify_conversation(db, conv, current_user, "assign"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
+    if req.doctor_id is None:
+        raise HTTPException(status_code=400, detail="An active target clinician is required")
+    target = db.query(Doctor).join(User, User.id == Doctor.user_id).filter(
+        Doctor.id == req.doctor_id, Doctor.status == "Active",
+        User.role.in_(("doctor", "emergency_doctor")), User.password_hash.is_not(None),
+    ).first()
+    if target is None:
+        raise HTTPException(status_code=400, detail="Target clinician must have an active profile and account")
+    target_department_id = req.department_id if req.department_id is not None else conv.department_id
+    if target_department_id is not None and target.department_id != target_department_id:
+        membership = db.query(DoctorDepartmentMembership).filter(
+            DoctorDepartmentMembership.doctor_id == target.id,
+            DoctorDepartmentMembership.department_id == target_department_id,
+            DoctorDepartmentMembership.is_active == True,
+        ).first()
+        if membership is None:
+            raise HTTPException(status_code=400, detail="Target clinician is not assigned to the requested department")
+        from src.workforce_service import source_assignment_current
+        if not source_assignment_current(db, "DOCTOR", membership.id):
+            raise HTTPException(status_code=400, detail="Target clinician's managed department assignment has expired")
 
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_chat_assigned",
+                    details={"conversation_id": conv.id, "target_doctor_id": target.id,
+                             "department_id": target_department_id}))
     updated = orchestrator.assign_conversation(
         db=db,
         conversation=conv,
@@ -563,13 +609,21 @@ def escalate_conversation(
     """
     Manually escalates a conversation's clinical urgency.
     """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().populate_existing().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    if not can_doctor_modify_conversation(db, conv, current_user, "escalate"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
+    urgency_rank = {"LOW_PRIORITY": 0, "NORMAL": 1, "MODERATE": 2, "HIGH_PRIORITY": 3, "EMERGENCY_REVIEW": 4}
+    if urgency_rank[req.urgency] <= urgency_rank[conv.urgency]:
+        raise HTTPException(status_code=409, detail="Escalation must increase urgency")
+    if req.department_id is not None and db.query(Department).filter(Department.id == req.department_id).first() is None:
+        raise HTTPException(status_code=400, detail="Target department not found")
 
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_chat_escalated",
+                    details={"conversation_id": conv.id, "from_urgency": conv.urgency,
+                             "to_urgency": req.urgency}))
     updated = orchestrator.escalate_conversation(
         db=db,
         conversation=conv,
@@ -596,13 +650,17 @@ def resolve_conversation(
     """
     Clinician resolves a clinical consultation.
     """
-    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).first()
+    conv = db.query(ClinicalConversation).filter(ClinicalConversation.id == conversation_id).with_for_update().populate_existing().first()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    if not can_doctor_modify_conversation(db, conv, current_user, "resolve"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
+    if conv.escalation_status == "PENDING_ACK" or conv.status not in {"DOCTOR_RESPONDED", "ESCALATED"}:
+        raise HTTPException(status_code=409, detail="Conversation is not ready for clinical resolution")
 
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_chat_resolved",
+                    details={"conversation_id": conv.id}))
     updated = orchestrator.resolve_conversation(
         db=db,
         conversation=conv,
@@ -630,7 +688,8 @@ def get_conversation_events(
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    authorized, _ = can_doctor_access_conversation(db, conv, current_user)
+    if not authorized:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
 
     events = (
@@ -676,7 +735,8 @@ def get_conversation_ai_analyses(
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if not can_doctor_modify_conversation(db, conv, current_user):
+    authorized, _ = can_doctor_access_conversation(db, conv, current_user)
+    if not authorized:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Doctor not authorized")
 
     analyses = (
@@ -700,6 +760,7 @@ def list_routing_rules(
     """
     Administrator lists all clinical routing rules.
     """
+    _require_hospital_admin(current_user)
     rules = db.query(ClinicalRoutingRule).order_by(ClinicalRoutingRule.created_at.desc()).all()
     res = []
     for r in rules:
@@ -726,6 +787,7 @@ def create_routing_rule(
     """
     Administrator adds a new clinical routing rule.
     """
+    _require_hospital_admin(current_user)
     dept = db.query(Department).filter(Department.id == req.department_id).first()
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
@@ -738,6 +800,9 @@ def create_routing_rule(
         version=req.version
     )
     db.add(rule)
+    db.flush()
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_routing_rule_created",
+                    details={"rule_id": rule.id, "department_id": req.department_id}))
     db.commit()
     db.refresh(rule)
 
@@ -763,6 +828,7 @@ def update_routing_rule(
     """
     Administrator updates an existing routing rule.
     """
+    _require_hospital_admin(current_user)
     rule = db.query(ClinicalRoutingRule).filter(ClinicalRoutingRule.id == rule_id).first()
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Routing rule not found")
@@ -779,6 +845,8 @@ def update_routing_rule(
     if req.is_enabled is not None:
         rule.is_enabled = req.is_enabled
 
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_routing_rule_updated",
+                    details={"rule_id": rule.id, "department_id": rule.department_id}))
     db.commit()
     db.refresh(rule)
 
@@ -804,6 +872,7 @@ def list_doctor_memberships(
     """
     Lists doctor department coverage memberships.
     """
+    _require_hospital_admin(current_user)
     query = db.query(DoctorDepartmentMembership)
     if department_id:
         query = query.filter(DoctorDepartmentMembership.department_id == department_id)
@@ -835,9 +904,13 @@ def create_doctor_membership(
     """
     Administrator adds a doctor to a department coverage role (MEMBER, RESPONDER, LEAD).
     """
-    doc = db.query(Doctor).filter(Doctor.id == req.doctor_id).first()
+    _require_hospital_admin(current_user)
+    doc = db.query(Doctor).join(User, User.id == Doctor.user_id).filter(
+        Doctor.id == req.doctor_id, Doctor.status == "Active",
+        User.role.in_(("doctor", "emergency_doctor")), User.password_hash.is_not(None),
+    ).first()
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
+        raise HTTPException(status_code=400, detail="Active target clinician account required")
     dept = db.query(Department).filter(Department.id == req.department_id).first()
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
@@ -849,6 +922,10 @@ def create_doctor_membership(
         is_active=req.is_active
     )
     db.add(membership)
+    db.flush()
+    db.add(AuditLog(user_id=current_user.user_id, action="clinical_membership_created",
+                    details={"membership_id": membership.id, "doctor_id": req.doctor_id,
+                             "department_id": req.department_id}))
     db.commit()
     db.refresh(membership)
 

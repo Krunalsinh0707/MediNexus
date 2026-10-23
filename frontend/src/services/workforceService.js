@@ -1,0 +1,21 @@
+import api from './api';
+
+export const listStaff = async params => (await api.get('/workforce/staff', { params })).data;
+export const getStaff = async id => (await api.get(`/workforce/staff/${id}`)).data;
+export const departments = async () => (await api.get('/workforce/departments')).data;
+export const wards = async () => (await api.get('/workforce/wards')).data;
+export const locations = async () => (await api.get('/workforce/locations')).data;
+export const createAssignment = async body => (await api.post('/workforce/assignments', body)).data;
+export const changeAssignment = async (id, body) => (await api.post(`/workforce/assignments/${id}/change`, body)).data;
+export const assignmentEvents = async id => (await api.get(`/workforce/assignments/${id}/events`)).data;
+export const listShifts = async params => (await api.get('/workforce/shifts', { params })).data;
+export const createShift = async body => (await api.post('/workforce/shifts', body)).data;
+export const changeShift = async (id, body) => (await api.post(`/workforce/shifts/${id}/change`, body)).data;
+export const shiftEvents = async id => (await api.get(`/workforce/shifts/${id}/events`)).data;
+export const listAttendance = async params => (await api.get('/workforce/attendance', { params })).data;
+export const clockIn = async id => (await api.post(`/workforce/shifts/${id}/clock-in`)).data;
+export const clockOut = async (id, expected_version) => (await api.post(`/workforce/attendance/${id}/clock-out`, { expected_version })).data;
+export const attendanceEvents = async id => (await api.get(`/workforce/attendance/${id}/events`)).data;
+export const requestCorrection = async (id, body) => (await api.post(`/workforce/attendance/${id}/corrections`, body)).data;
+export const listCorrections = async () => (await api.get('/workforce/corrections')).data;
+export const decideCorrection = async (id, body) => (await api.post(`/workforce/corrections/${id}/decision`, body)).data;

@@ -313,16 +313,14 @@ const DoctorAppointments = () => {
                     </>
                   )}
 
-                  {/* If Confirmed: Complete Consultation */}
+                  {/* Linked visits must be completed in the encounter workflow. */}
                   {isConfirmed && (
-                    <button
-                      onClick={() => handleStatusChange(app.id, 'COMPLETED', 'Consultation finished')}
-                      disabled={actionLoading === app.id}
+                    <Link
+                      to={`/doctor/encounters/new?appointment_id=${app.id}&patient_id=${app.patient_id}`}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
                     >
-                      <CheckCircle2 size={14} />
-                      <span>Mark Completed</span>
-                    </button>
+                      <CheckCircle2 size={14} /><span>Open encounter</span>
+                    </Link>
                   )}
                 </div>
               </div>

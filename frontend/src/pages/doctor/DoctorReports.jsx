@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { FileText, Cpu, CheckCircle2, AlertTriangle, XCircle, Edit3, ShieldCheck } from 'lucide-react';
 import { getReportsPendingReview, submitDoctorReview } from '../../services/medicalReportsService';
 import AIAnalysisCard from '../../components/AIAnalysisCard';
+import { clinicalWriteError } from '../clinicalWriteErrors';
 
 const DoctorReports = () => {
   const [reports, setReports] = useState([]);
@@ -25,6 +26,8 @@ const DoctorReports = () => {
       setReports(data || []);
     } catch (err) {
       console.error(err);
+      setMessage(clinicalWriteError(err, 'review'));
+      setReports([]);
     } finally {
       setLoading(false);
     }
@@ -48,7 +51,7 @@ const DoctorReports = () => {
       fetchQueue();
     } catch (err) {
       console.error(err);
-      setMessage('Failed to submit doctor review.');
+      setMessage(clinicalWriteError(err, 'review'));
     }
   };
 

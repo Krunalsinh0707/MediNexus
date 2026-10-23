@@ -37,6 +37,18 @@ const AnalyticsPage = lazy(() => import('./pages/patient/AnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/patient/SettingsPage'));
 const PatientChatPage = lazy(() => import('./pages/patient/PatientChatPage'));
 const ClinicalChatConsole = lazy(() => import('./pages/doctor/ClinicalChatConsole'));
+const DoctorEncounterEntry = lazy(() => import('./pages/doctor/DoctorEncounterEntry'));
+const DoctorEncounterWorkspace = lazy(() => import('./pages/doctor/DoctorEncounterWorkspace'));
+const MyVisits = lazy(() => import('./pages/patient/MyVisits'));
+const PharmacyWorkspace = lazy(() => import('./pages/pharmacy/PharmacyWorkspace'));
+const LaboratoryWorkspace = lazy(() => import('./pages/laboratory/LaboratoryWorkspace'));
+const RadiologyWorkspace = lazy(() => import('./pages/radiology/RadiologyWorkspace'));
+const InpatientWorkspace = lazy(() => import('./pages/InpatientWorkspace'));
+const NursingWorkspace = lazy(() => import('./pages/NursingWorkspace'));
+const BillingWorkspace = lazy(() => import('./pages/BillingWorkspace'));
+const InsuranceWorkspace = lazy(() => import('./pages/InsuranceWorkspace'));
+const InventoryWorkspace = lazy(() => import('./pages/InventoryWorkspace'));
+const WorkforceWorkspace = lazy(() => import('./pages/WorkforceWorkspace'));
 
 const LayoutContext = createContext();
 export const useLayout = () => useContext(LayoutContext);
@@ -80,6 +92,46 @@ const AdminProtectedRoute = ({ children }) => {
     return <Navigate to="/doctor/dashboard" replace />;
   }
   if (role !== 'admin' && role !== 'hospital_admin' && role !== 'department_admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
+const DepartmentOperationsProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if ((user.role || '').toLowerCase() !== 'department_admin') {
+    const role = (user.role || '').toLowerCase();
+    return <Navigate to={role === 'doctor' || role === 'emergency_doctor' ? '/doctor/dashboard' : role === 'patient' || role === 'user' ? '/dashboard' : '/admin'} replace />;
+  }
+  return children;
+};
+
+const InpatientProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  const role = (user.role || '').toLowerCase();
+  if (!['doctor', 'emergency_doctor', 'admin', 'hospital_admin', 'department_admin'].includes(role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
+const NursingProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if ((user.role || '').toLowerCase() !== 'department_admin') return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
+const WorkforceProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if (!['admin', 'hospital_admin', 'department_admin', 'doctor', 'emergency_doctor'].includes((user.role || '').toLowerCase())) {
     return <Navigate to="/dashboard" replace />;
   }
   return children;
@@ -176,6 +228,7 @@ function App() {
               <Route path="/my-reports" element={<PatientProtectedRoute><DashboardLayout><MyReports /></DashboardLayout></PatientProtectedRoute>} />
               <Route path="/own-report" element={<PatientProtectedRoute><DashboardLayout><OwnReportFlow /></DashboardLayout></PatientProtectedRoute>} />
               <Route path="/appointments" element={<PatientProtectedRoute><DashboardLayout><Appointments /></DashboardLayout></PatientProtectedRoute>} />
+              <Route path="/my-visits" element={<PatientProtectedRoute><DashboardLayout><MyVisits /></DashboardLayout></PatientProtectedRoute>} />
               <Route path="/doctors" element={<PatientProtectedRoute><DashboardLayout><DoctorsPage /></DashboardLayout></PatientProtectedRoute>} />
               <Route path="/analytics" element={<PatientProtectedRoute><DashboardLayout><AnalyticsPage /></DashboardLayout></PatientProtectedRoute>} />
               <Route path="/history" element={<Navigate to="/my-reports" replace />} />
@@ -186,9 +239,24 @@ function App() {
               {/* Doctor Routes */}
               <Route path="/doctor/dashboard" element={<DoctorProtectedRoute><DashboardLayout><DoctorDashboard /></DashboardLayout></DoctorProtectedRoute>} />
               <Route path="/doctor/appointments" element={<DoctorProtectedRoute><DashboardLayout><DoctorAppointments /></DashboardLayout></DoctorProtectedRoute>} />
+              <Route path="/doctor/encounters/new" element={<DoctorProtectedRoute><DashboardLayout><DoctorEncounterEntry /></DashboardLayout></DoctorProtectedRoute>} />
+              <Route path="/doctor/encounters/:encounterId" element={<DoctorProtectedRoute><DashboardLayout><DoctorEncounterWorkspace /></DashboardLayout></DoctorProtectedRoute>} />
               <Route path="/doctor/patients/:patientId" element={<DoctorProtectedRoute><DashboardLayout><DoctorPatientView /></DashboardLayout></DoctorProtectedRoute>} />
               <Route path="/doctor/reports" element={<DoctorProtectedRoute><DashboardLayout><DoctorReports /></DashboardLayout></DoctorProtectedRoute>} />
               <Route path="/doctor/clinical-chat" element={<DoctorProtectedRoute><DashboardLayout><ClinicalChatConsole /></DashboardLayout></DoctorProtectedRoute>} />
+
+              {/* Department-scoped pharmacy operations */}
+              <Route path="/pharmacy" element={<DepartmentOperationsProtectedRoute><DashboardLayout><PharmacyWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/laboratory" element={<DepartmentOperationsProtectedRoute><DashboardLayout><LaboratoryWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/radiology" element={<DepartmentOperationsProtectedRoute><DashboardLayout><RadiologyWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/inpatient" element={<InpatientProtectedRoute><DashboardLayout><InpatientWorkspace /></DashboardLayout></InpatientProtectedRoute>} />
+              <Route path="/nursing" element={<NursingProtectedRoute><DashboardLayout><NursingWorkspace /></DashboardLayout></NursingProtectedRoute>} />
+              <Route path="/billing" element={<DepartmentOperationsProtectedRoute><DashboardLayout><BillingWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/my-billing" element={<PatientProtectedRoute><DashboardLayout><BillingWorkspace patientView /></DashboardLayout></PatientProtectedRoute>} />
+              <Route path="/insurance" element={<DepartmentOperationsProtectedRoute><DashboardLayout><InsuranceWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/inventory" element={<DepartmentOperationsProtectedRoute><DashboardLayout><InventoryWorkspace /></DashboardLayout></DepartmentOperationsProtectedRoute>} />
+              <Route path="/workforce" element={<WorkforceProtectedRoute><DashboardLayout><WorkforceWorkspace /></DashboardLayout></WorkforceProtectedRoute>} />
+              <Route path="/my-insurance" element={<PatientProtectedRoute><DashboardLayout><InsuranceWorkspace patientView /></DashboardLayout></PatientProtectedRoute>} />
 
               {/* Shared Clinical & Account Services */}
               <Route path="/departments" element={<CommonProtectedRoute><DashboardLayout><DepartmentsPage /></DashboardLayout></CommonProtectedRoute>} />

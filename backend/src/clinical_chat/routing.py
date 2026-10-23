@@ -75,13 +75,16 @@ class ClinicalRouter:
             return None
 
         # 1. Look for active RESPONDER or LEAD in doctor_department_memberships
-        membership = db.query(DoctorDepartmentMembership).filter(
+        memberships = db.query(DoctorDepartmentMembership).filter(
             DoctorDepartmentMembership.department_id == department_id,
             DoctorDepartmentMembership.is_active == True,
             DoctorDepartmentMembership.role.in_(["RESPONDER", "LEAD"])
-        ).first()
+        ).all()
 
-        if membership:
+        from src.workforce_service import source_assignment_current
+        for membership in memberships:
+            if not source_assignment_current(db, "DOCTOR", membership.id):
+                continue
             # Check doctor status is Active
             doc = db.query(Doctor).filter(Doctor.id == membership.doctor_id, Doctor.status == "Active").first()
             if doc:

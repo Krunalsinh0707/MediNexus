@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="", tags=["Admin Administration"])
 
+
+def _decode_json_column(value):
+    """Decode legacy serialized JSON while preserving values decoded by psycopg."""
+    if isinstance(value, (str, bytes, bytearray)):
+        return json.loads(value)
+    return value
+
 @router.get("/reports/admin")
 async def get_admin_data(current_user=Depends(get_current_admin)):
     conn = get_db_connection()
@@ -42,9 +49,9 @@ async def get_admin_data(current_user=Depends(get_current_admin)):
         for r in all_reports:
             if r.get('type') == 'cbc':
                 if r.get('cbc_json'):
-                    r['cbc'] = json.loads(r['cbc_json'])
+                    r['cbc'] = _decode_json_column(r['cbc_json'])
                 if r.get('interpretation_json'):
-                    r['interpretation'] = json.loads(r['interpretation_json'])
+                    r['interpretation'] = _decode_json_column(r['interpretation_json'])
                 if 'cbc_json' in r: del r['cbc_json']
                 if 'interpretation_json' in r: del r['interpretation_json']
 
@@ -180,17 +187,6 @@ async def get_admin_models(db: Session = Depends(get_db), current_user=Depends(g
 @router.get("/admin/logs")
 async def get_admin_logs(db: Session = Depends(get_db), current_user=Depends(get_current_admin)):
     logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(100).all()
-    if not logs:
-        # Seed initial audit logs if empty
-        default_logs = [
-            AuditLog(user_id=current_user.user_id, action="Neural Models Retrained (Diabetes, Heart, Hypertension, CBC)", status="Success"),
-            AuditLog(user_id=current_user.user_id, action="Admin Auth Session Created", status="Success"),
-            AuditLog(user_id=current_user.user_id, action="Automated Clinical Database Optimization", status="Completed"),
-        ]
-        for l in default_logs:
-            db.add(l)
-        db.commit()
-        logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(100).all()
         
     return {
         "logs": [

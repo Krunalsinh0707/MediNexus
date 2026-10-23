@@ -11,7 +11,7 @@ import sys
 root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root_path)
 
-from src.models import Base
+from src.schema_registry import current_metadata, validated_module_ddl
 from src.database import get_sqlalchemy_engine
 
 # this is the Alembic Config object, which provides
@@ -25,7 +25,8 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+validated_module_ddl()
+target_metadata = current_metadata()
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

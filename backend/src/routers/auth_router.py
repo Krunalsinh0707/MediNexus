@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 
 ALLOWED_BLOOD_GROUPS = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
-SAFE_USER_COLUMNS = "id, email, full_name, role, blood_group, mobile_no, email_verified, mobile_verified, profile_data, created_at, updated_at"
+SAFE_USER_COLUMNS = "id, email, full_name, role, blood_group, mobile_no, mrn, date_of_birth, email_verified, mobile_verified, profile_data, created_at, updated_at"
 
 class UserCreate(BaseModel):
     email: str
@@ -85,13 +85,13 @@ async def register(
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    cursor.execute("SELECT id FROM users WHERE lower(btrim(email)) = %s", (email,))
     if cursor.fetchone():
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    cursor.execute("SELECT id FROM users WHERE mobile_no = %s", (mobile_no,))
+    cursor.execute("SELECT id FROM users WHERE regexp_replace(mobile_no, '[^0-9]', '', 'g') = %s", (mobile_no,))
     if cursor.fetchone():
         cursor.close()
         conn.close()
@@ -102,12 +102,18 @@ async def register(
     cursor.execute(
         """
         INSERT INTO users (email, mobile_no, blood_group, password_hash, full_name, role)
-        VALUES (%s, %s, %s, %s, %s, 'user')
+        VALUES (%s, %s, %s, %s, %s, 'user') RETURNING id
         """,
         (email, mobile_no, blood_group, hashed_password, full_name)
     )
+    inserted_user = cursor.fetchone()
+    if not inserted_user or inserted_user.get("id") is None:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail="Could not retrieve the registered user ID")
+    user_id = int(inserted_user["id"])
     conn.commit()
-    user_id = cursor.lastrowid
 
     access_token = create_access_token(
         data={"sub": email, "user_id": user_id, "role": "user"},
@@ -133,9 +139,9 @@ async def login(
     cursor = conn.cursor(dictionary=True)
 
     if "@" in login_id_raw:
-        cursor.execute("SELECT id, email, password_hash, role FROM users WHERE email = %s", (login_id_email,))
+        cursor.execute("SELECT id, email, password_hash, role FROM users WHERE lower(btrim(email)) = %s AND password_hash IS NOT NULL", (login_id_email,))
     else:
-        cursor.execute("SELECT id, email, password_hash, role FROM users WHERE mobile_no = %s", (login_id_mobile,))
+        cursor.execute("SELECT id, email, password_hash, role FROM users WHERE regexp_replace(mobile_no, '[^0-9]', '', 'g') = %s AND password_hash IS NOT NULL", (login_id_mobile,))
     user = cursor.fetchone()
 
     if not user or not verify_password(form_data.password, user["password_hash"]):

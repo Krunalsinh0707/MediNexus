@@ -20,6 +20,8 @@ __pycache__/
 # Database backups, dumps & sensitive logs
 # =========================
 *.sql
+# Synthetic schema-only regression fixture; contains no application data.
+!backend/tests/fixtures/phase2a_schema.sql
 *.dump
 *.db
 *.sqlite
@@ -28,6 +30,7 @@ error_log.json
 backend/error_log.json
 health_analyzer_mariadb_backup.sql
 backend/health_analyzer_mariadb_backup.sql
+backend/backups/
 
 # =========================
 # Node.js

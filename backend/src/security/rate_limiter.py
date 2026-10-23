@@ -56,10 +56,12 @@ def get_client_ip(request: Request) -> str:
         return real_ip.strip()
     return request.client.host if request.client else "127.0.0.1"
 
-def rate_limit(max_requests: int, window_seconds: int, scope: str = "global"):
+def rate_limit(max_requests: int, window_seconds: int, scope: str = "global", prefix: str | None = None):
     """
-    FastAPI dependency factory to enforce rate limiting on specific endpoints.
+    FastAPI dependency factory; ``prefix`` remains an alias for ``scope``.
     """
+    if prefix is not None:
+        scope = prefix
     def dependency(request: Request):
         client_ip = get_client_ip(request)
         key = f"{scope}:{client_ip}"

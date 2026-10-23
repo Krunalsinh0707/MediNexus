@@ -315,8 +315,11 @@ class ClinicalChatOrchestrator:
                 detail="Message length exceeds maximum allowable limit of 4000 characters."
             )
 
-        doctor = db.query(Doctor).filter(Doctor.user_id == doctor_user_id).first()
-        doctor_name = doctor.user.full_name if doctor and doctor.user else "Attending Clinician"
+        doctor = db.query(Doctor).filter(Doctor.user_id == doctor_user_id, Doctor.status == "Active").first()
+        if (doctor is None or doctor.user is None or not doctor.user.password_hash
+                or doctor.user.role not in {"doctor", "emergency_doctor"}):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Active clinician profile required")
+        doctor_name = doctor.user.full_name
 
         msg = ClinicalMessage(
             conversation_id=conversation.id,

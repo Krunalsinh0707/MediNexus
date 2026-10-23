@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import List, Optional
 
 from src.database import get_db
 from src.models import Doctor, Department, User
 from src.auth import get_current_user, get_current_doctor, get_current_admin, get_password_hash
+from src.patient_access import PatientAccess, patient_read_access
 
 router = APIRouter(prefix="/doctors", tags=["Doctors Management"])
 
@@ -49,9 +51,20 @@ def list_doctors(department_id: Optional[int] = None, db: Session = Depends(get_
 
 @router.post("")
 def create_doctor(data: DoctorCreate, db: Session = Depends(get_db), current_user=Depends(get_current_admin)):
-    existing_user = db.query(User).filter(User.email == data.email).first()
+    existing_user = db.query(User).filter(
+        User.email.is_not(None),
+        func.lower(func.btrim(User.email)) == data.email.strip().lower(),
+    ).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="User with email already exists")
+
+    normalized_phone = "".join(ch for ch in data.mobile_no if ch.isdigit())
+    phone_user = db.query(User).filter(
+        User.mobile_no.is_not(None),
+        func.regexp_replace(User.mobile_no, "[^0-9]", "", "g") == normalized_phone,
+    ).first()
+    if phone_user:
+        raise HTTPException(status_code=400, detail="User with mobile number already exists")
 
     hashed_pw = get_password_hash(data.password)
     new_user = User(
@@ -104,19 +117,19 @@ def get_doctor_profile(db: Session = Depends(get_db), current_user=Depends(get_c
 
 @router.get("/patient/{patient_id}")
 def get_patient_clinical_summary(patient_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_doctor)):
-    doctor = db.query(Doctor).filter(Doctor.user_id == current_user.user_id).first()
-    if not doctor and current_user.role not in ['admin', 'hospital_admin', 'emergency_doctor']:
-        raise HTTPException(status_code=403, detail="Doctor privileges required to access clinical patient record")
-
+    access = patient_read_access(db, current_user, patient_id)
     patient = db.query(User).filter(User.id == patient_id).first()
-    if not patient:
+    if not patient or patient.role not in ("patient", "user"):
         raise HTTPException(status_code=404, detail="Patient record not found")
+    doctor = db.query(Doctor).filter(Doctor.user_id == current_user.user_id).first()
 
     # Fetch appointments
     from src.models import Appointment
     app_query = db.query(Appointment).filter(Appointment.patient_id == patient_id)
     if doctor:
         app_query = app_query.filter(Appointment.doctor_id == doctor.id)
+    if access == PatientAccess.PREPARATION:
+        app_query = app_query.filter(Appointment.status == "CONFIRMED")
     appointments = app_query.order_by(Appointment.appointment_date.desc()).all()
 
     app_list = []
@@ -127,10 +140,10 @@ def get_patient_clinical_summary(patient_id: int, db: Session = Depends(get_db),
             "time_slot": app.time_slot,
             "status": app.status,
             "reason": app.reason,
-            "notes": app.notes
+            "notes": app.notes if access == PatientAccess.CLINICAL else None
         })
 
-    profile = patient.profile_data or {}
+    profile = (patient.profile_data or {}) if access == PatientAccess.CLINICAL else {}
     if isinstance(profile, str):
         try:
             import json
@@ -140,10 +153,12 @@ def get_patient_clinical_summary(patient_id: int, db: Session = Depends(get_db),
 
     return {
         "id": patient.id,
+        "mrn": patient.mrn,
+        "access_scope": access.value,
         "full_name": patient.full_name,
-        "email": patient.email,
-        "mobile_no": patient.mobile_no,
-        "blood_group": patient.blood_group,
+        "email": patient.email if access == PatientAccess.CLINICAL else None,
+        "mobile_no": patient.mobile_no if access == PatientAccess.CLINICAL else None,
+        "blood_group": patient.blood_group if access == PatientAccess.CLINICAL else None,
         "role": patient.role,
         "profile_data": profile,
         "created_at": patient.created_at.strftime("%Y-%m-%d") if patient.created_at else "",

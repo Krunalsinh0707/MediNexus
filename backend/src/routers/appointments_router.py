@@ -5,13 +5,18 @@ from typing import List, Optional
 from datetime import datetime
 
 from src.database import get_db
-from src.models import Appointment, Doctor, Department, User, Notification
+from src.models import Appointment, Doctor, Department, User, Notification, AuditLog
 from src.auth import get_current_user
 from src.security.rate_limiter import rate_limit
+from src.encounter_service import refuse_linked_appointment_change
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
 ALLOWED_APPOINTMENT_STATUSES = {"REQUESTED", "CONFIRMED", "REJECTED", "CANCELLED", "COMPLETED", "NO_SHOW"}
+APPOINTMENT_TRANSITIONS = {
+    "REQUESTED": {"CONFIRMED", "REJECTED", "CANCELLED"},
+    "CONFIRMED": {"CANCELLED", "COMPLETED", "NO_SHOW"},
+}
 
 class AppointmentCreate(BaseModel):
     doctor_id: int
@@ -149,7 +154,7 @@ def update_appointment_status(appointment_id: int, update: AppointmentStatusUpda
     if status_clean not in ALLOWED_APPOINTMENT_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid appointment status. Allowed: {', '.join(sorted(ALLOWED_APPOINTMENT_STATUSES))}")
 
-    app = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    app = db.query(Appointment).filter(Appointment.id == appointment_id).with_for_update().populate_existing().first()
     if not app:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
@@ -161,11 +166,15 @@ def update_appointment_status(appointment_id: int, update: AppointmentStatusUpda
             raise HTTPException(status_code=400, detail="Patients may only cancel appointments")
     elif user_role in ['doctor', 'emergency_doctor']:
         doc = db.query(Doctor).filter(Doctor.user_id == current_user.user_id).first()
-        if not doc or app.doctor_id != doc.id:
+        if not doc or doc.status != "Active" or app.doctor_id != doc.id:
             raise HTTPException(status_code=403, detail="Doctor not assigned to this appointment")
     elif user_role not in ['admin', 'hospital_admin']:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    refuse_linked_appointment_change(db, app.id)
+    previous_status = app.status
+    if status_clean not in APPOINTMENT_TRANSITIONS.get(previous_status, set()):
+        raise HTTPException(status_code=409, detail="Appointment status transition is not allowed")
     app.status = status_clean
     if update.notes:
         app.notes = update.notes
@@ -190,5 +199,7 @@ def update_appointment_status(appointment_id: int, update: AppointmentStatusUpda
         )
         db.add(notif)
 
+    db.add(AuditLog(user_id=current_user.user_id, action="appointment_status_changed",
+                    details={"appointment_id": app.id, "from_status": previous_status, "to_status": status_clean}))
     db.commit()
     return {"message": f"Appointment status updated to {update.status}"}

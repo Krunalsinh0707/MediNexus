@@ -1,0 +1,3292 @@
+{
+  "tables": {
+    "ai_analyses": {
+      "columns": [
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_slug",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "explanation",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".ai_analyses_id_seq'::regclass)"
+        },
+        {
+          "name": "important_factors",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "model_name",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "model_version",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "prediction",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "probability",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "report_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "requires_doctor_review",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "risk_level",
+          "type": "ai_risk_level_enum",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "report_id"
+          ],
+          "table": "medical_reports",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [
+        [
+          "report_id"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ai_analyses_report_id_key",
+          "unique": true,
+          "columns": [
+            "report_id"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "appointments": {
+      "columns": [
+        {
+          "name": "appointment_date",
+          "type": "TIMESTAMP WITHOUT TIME ZONE",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".appointments_id_seq'::regclass)"
+        },
+        {
+          "name": "notes",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "appointment_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "time_slot",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "audit_logs": {
+      "columns": [
+        {
+          "name": "action",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "details",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".audit_logs_id_seq'::regclass)"
+        },
+        {
+          "name": "ip_address",
+          "type": "VARCHAR(45)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "cbc_reports": {
+      "columns": [
+        {
+          "name": "cbc_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".cbc_reports_id_seq'::regclass)"
+        },
+        {
+          "name": "interpretation_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "probability",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "source",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "chat_conversations": {
+      "columns": [
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".chat_conversations_id_seq'::regclass)"
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "chat_messages": {
+      "columns": [
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".chat_messages_id_seq'::regclass)"
+        },
+        {
+          "name": "message",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "sender",
+          "type": "chat_sender_enum",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "chat_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "clinical_ai_analyses": {
+      "columns": [
+        {
+          "name": "category",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "confidence",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "evidence_codes",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "human_review_required",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_ai_analyses_id_seq'::regclass)"
+        },
+        {
+          "name": "message_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "model_rule_version",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "clinical_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "message_id"
+          ],
+          "table": "clinical_messages",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_ai_analyses_conversation_id",
+          "unique": false,
+          "columns": [
+            "conversation_id"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_alerts": {
+      "columns": [
+        {
+          "name": "acknowledged_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "acknowledged_by_user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "assigned_doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "dedupe_key",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "escalated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_alerts_id_seq'::regclass)"
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "resolved_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "clinical_alert_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "urgency",
+          "type": "clinical_urgency_enum",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "acknowledged_by_user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "assigned_doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "clinical_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_alerts_assigned_doctor_id",
+          "unique": false,
+          "columns": [
+            "assigned_doctor_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_alerts_conversation_id",
+          "unique": false,
+          "columns": [
+            "conversation_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_alerts_dedupe_key",
+          "unique": false,
+          "columns": [
+            "dedupe_key"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_alerts_department_id",
+          "unique": false,
+          "columns": [
+            "department_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_alerts_escalated_at",
+          "unique": false,
+          "columns": [
+            "escalated_at"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_alerts_status",
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_assignments": {
+      "columns": [
+        {
+          "name": "assigned_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "assigned_by_user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_assignments_id_seq'::regclass)"
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "unassigned_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "assigned_by_user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "clinical_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_assignments_conversation_id",
+          "unique": false,
+          "columns": [
+            "conversation_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_assignments_department_id",
+          "unique": false,
+          "columns": [
+            "department_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_assignments_doctor_id",
+          "unique": false,
+          "columns": [
+            "doctor_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_assignments_is_active",
+          "unique": false,
+          "columns": [
+            "is_active"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_conversations": {
+      "columns": [
+        {
+          "name": "assigned_doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "escalation_status",
+          "type": "escalation_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_conversations_id_seq'::regclass)"
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "resolved_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "source_legacy_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "clinical_conversation_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "urgency",
+          "type": "clinical_urgency_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "workflow_state",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "assigned_doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_conversations_assigned_doctor_id",
+          "unique": false,
+          "columns": [
+            "assigned_doctor_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_created_at",
+          "unique": false,
+          "columns": [
+            "created_at"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_department_id",
+          "unique": false,
+          "columns": [
+            "department_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_escalation_status",
+          "unique": false,
+          "columns": [
+            "escalation_status"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_patient_id",
+          "unique": false,
+          "columns": [
+            "patient_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_status",
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_updated_at",
+          "unique": false,
+          "columns": [
+            "updated_at"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_conversations_urgency",
+          "unique": false,
+          "columns": [
+            "urgency"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_events": {
+      "columns": [
+        {
+          "name": "actor_user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "event_type",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_events_id_seq'::regclass)"
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "state_after",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "state_before",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "actor_user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "clinical_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_events_conversation_id",
+          "unique": false,
+          "columns": [
+            "conversation_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_events_created_at",
+          "unique": false,
+          "columns": [
+            "created_at"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_events_event_type",
+          "unique": false,
+          "columns": [
+            "event_type"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_messages": {
+      "columns": [
+        {
+          "name": "body",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "conversation_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_messages_id_seq'::regclass)"
+        },
+        {
+          "name": "redaction_metadata",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "sender_type",
+          "type": "clinical_sender_type_enum",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "sender_user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "conversation_id"
+          ],
+          "table": "clinical_conversations",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "sender_user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_messages_conversation_id",
+          "unique": false,
+          "columns": [
+            "conversation_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_messages_created_at",
+          "unique": false,
+          "columns": [
+            "created_at"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "clinical_routing_rules": {
+      "columns": [
+        {
+          "name": "category_or_indicator",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".clinical_routing_rules_id_seq'::regclass)"
+        },
+        {
+          "name": "is_enabled",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "priority",
+          "type": "clinical_urgency_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "version",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_clinical_routing_rules_category_or_indicator",
+          "unique": false,
+          "columns": [
+            "category_or_indicator"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_routing_rules_department_id",
+          "unique": false,
+          "columns": [
+            "department_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_clinical_routing_rules_is_enabled",
+          "unique": false,
+          "columns": [
+            "is_enabled"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "departments": {
+      "columns": [
+        {
+          "name": "code",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "head_doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".departments_id_seq'::regclass)"
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "unique": [
+        [
+          "code"
+        ],
+        [
+          "name"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "departments_code_key",
+          "unique": true,
+          "columns": [
+            "code"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "departments_name_key",
+          "unique": true,
+          "columns": [
+            "name"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "doctor_department_memberships": {
+      "columns": [
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".doctor_department_memberships_id_seq'::regclass)"
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "role",
+          "type": "doctor_dept_role_enum",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_doctor_department_memberships_department_id",
+          "unique": false,
+          "columns": [
+            "department_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_doctor_department_memberships_doctor_id",
+          "unique": false,
+          "columns": [
+            "doctor_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_doctor_department_memberships_is_active",
+          "unique": false,
+          "columns": [
+            "is_active"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "doctor_reviews": {
+      "columns": [
+        {
+          "name": "clinical_notes",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "final_assessment",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".doctor_reviews_id_seq'::regclass)"
+        },
+        {
+          "name": "report_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "review_status",
+          "type": "review_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "reviewed_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "report_id"
+          ],
+          "table": "medical_reports",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [
+        [
+          "report_id"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "doctor_reviews_report_id_key",
+          "unique": true,
+          "columns": [
+            "report_id"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "doctors": {
+      "columns": [
+        {
+          "name": "availability",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "experience_years",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".doctors_id_seq'::regclass)"
+        },
+        {
+          "name": "license_number",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "qualification",
+          "type": "VARCHAR(150)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "specialization",
+          "type": "VARCHAR(150)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "doctor_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [
+        [
+          "user_id"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "doctors_user_id_key",
+          "unique": true,
+          "columns": [
+            "user_id"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "emergency_requests": {
+      "columns": [
+        {
+          "name": "assigned_doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "contact_phone",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".emergency_requests_id_seq'::regclass)"
+        },
+        {
+          "name": "location",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "resolved_at",
+          "type": "TIMESTAMP WITHOUT TIME ZONE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "severity",
+          "type": "emergency_severity_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "emergency_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "symptoms",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "assigned_doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "heart_reports": {
+      "columns": [
+        {
+          "name": "age",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "ca",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "chol",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "cp",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "exang",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "fbs",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".heart_reports_id_seq'::regclass)"
+        },
+        {
+          "name": "oldpeak",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "prediction",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "probability",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "restecg",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "sex",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "slope",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "thal",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "thalach",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "trestbps",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "hypertension_reports": {
+      "columns": [
+        {
+          "name": "activity_level",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "age",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "bmi",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "family_history",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "heart_rate",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".hypertension_reports_id_seq'::regclass)"
+        },
+        {
+          "name": "prediction",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "probability",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "sex",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "smoker",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "medical_records": {
+      "columns": [
+        {
+          "name": "allergies",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "current_medications",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".medical_records_id_seq'::regclass)"
+        },
+        {
+          "name": "medical_history_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "summary",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "medical_reports": {
+      "columns": [
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "department_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "file_path",
+          "type": "VARCHAR(500)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".medical_reports_id_seq'::regclass)"
+        },
+        {
+          "name": "original_filename",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "report_date",
+          "type": "TIMESTAMP WITHOUT TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "report_source",
+          "type": "report_source_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "report_title",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "report_type",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "medical_report_status_enum",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "department_id"
+          ],
+          "table": "departments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "model_registry": {
+      "columns": [
+        {
+          "name": "accuracy",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "algorithm",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "auc_roc",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "f1_score",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".model_registry_id_seq'::regclass)"
+        },
+        {
+          "name": "inference_count",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "last_trained",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "model_name",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "precision",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "recall",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "model_status_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "version",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "unique": [
+        [
+          "model_name"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "model_registry_model_name_key",
+          "unique": true,
+          "columns": [
+            "model_name"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "notifications": {
+      "columns": [
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".notifications_id_seq'::regclass)"
+        },
+        {
+          "name": "is_read",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "message",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "type",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "password_reset_otp": {
+      "columns": [
+        {
+          "name": "attempts",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "expires_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".password_reset_otp_id_seq'::regclass)"
+        },
+        {
+          "name": "ip_address",
+          "type": "VARCHAR(45)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "otp",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "user_agent",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "verified",
+          "type": "BOOLEAN",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_password_reset_otp_email",
+          "unique": false,
+          "columns": [
+            "email"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "patient_doctor_messages": {
+      "columns": [
+        {
+          "name": "appointment_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".patient_doctor_messages_id_seq'::regclass)"
+        },
+        {
+          "name": "is_read",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "message",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "sender_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "appointment_id"
+          ],
+          "table": "appointments",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "sender_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "patient_reports": {
+      "columns": [
+        {
+          "name": "abnormal_count",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "abnormal_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "age",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "blood_pressure",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "bmi",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "conditions_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "diabetes_pedigree_function",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "diabetes_prediction",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "glucose",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "heart_disease_prediction",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "hypertension_prediction",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".patient_reports_id_seq'::regclass)"
+        },
+        {
+          "name": "insulin",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "probability",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "risk_level",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "skin_thickness",
+          "type": "REAL",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "source",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "specialists_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "SET NULL"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    },
+    "report_extractions": {
+      "columns": [
+        {
+          "name": "confidence_score",
+          "type": "DOUBLE PRECISION",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "extracted_json",
+          "type": "JSON",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".report_extractions_id_seq'::regclass)"
+        },
+        {
+          "name": "ocr_raw_text",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "report_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "validation_status",
+          "type": "extraction_validation_status_enum",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "report_id"
+          ],
+          "table": "medical_reports",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [
+        [
+          "report_id"
+        ]
+      ],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "report_extractions_report_id_key",
+          "unique": true,
+          "columns": [
+            "report_id"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "report_review_requests": {
+      "columns": [
+        {
+          "name": "completed_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "doctor_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".report_review_requests_id_seq'::regclass)"
+        },
+        {
+          "name": "notes",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "patient_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "report_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "status",
+          "type": "report_review_request_status_enum",
+          "nullable": false,
+          "default": "'PENDING'::report_review_request_status_enum"
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "doctor_id"
+          ],
+          "table": "doctors",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "patient_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        },
+        {
+          "columns": [
+            "report_id"
+          ],
+          "table": "medical_reports",
+          "target": [
+            "id"
+          ],
+          "ondelete": "CASCADE"
+        }
+      ],
+      "unique": [],
+      "checks": [],
+      "indexes": [
+        {
+          "name": "ix_report_review_requests_created_at",
+          "unique": false,
+          "columns": [
+            "created_at"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_report_review_requests_doctor_id",
+          "unique": false,
+          "columns": [
+            "doctor_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_report_review_requests_patient_id",
+          "unique": false,
+          "columns": [
+            "patient_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_report_review_requests_report_id",
+          "unique": false,
+          "columns": [
+            "report_id"
+          ],
+          "expressions": null,
+          "where": null
+        },
+        {
+          "name": "ix_report_review_requests_status",
+          "unique": false,
+          "columns": [
+            "status"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "users": {
+      "columns": [
+        {
+          "name": "blood_group",
+          "type": "VARCHAR(5)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "date_of_birth",
+          "type": "DATE",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "email_verified",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "full_name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".users_id_seq'::regclass)"
+        },
+        {
+          "name": "mobile_no",
+          "type": "VARCHAR(20)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "mobile_verified",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "mrn",
+          "type": "VARCHAR(32)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "password_hash",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "profile_data",
+          "type": "JSON",
+          "nullable": true,
+          "default": "'{}'::jsonb"
+        },
+        {
+          "name": "role",
+          "type": "user_role_enum",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "unique": [],
+      "checks": [
+        "password_hash IS NULL OR email IS NOT NULL AND mobile_no IS NOT NULL"
+      ],
+      "indexes": [
+        {
+          "name": "uq_users_credentialed_email_normalized",
+          "unique": true,
+          "columns": [
+            null
+          ],
+          "expressions": [
+            "lower(btrim(email::text))"
+          ],
+          "where": "((password_hash IS NOT NULL) AND (email IS NOT NULL))"
+        },
+        {
+          "name": "uq_users_credentialed_mobile_normalized",
+          "unique": true,
+          "columns": [
+            null
+          ],
+          "expressions": [
+            "regexp_replace(mobile_no::text, '[^0-9]'::text, ''::text, 'g'::text)"
+          ],
+          "where": "((password_hash IS NOT NULL) AND (mobile_no IS NOT NULL))"
+        },
+        {
+          "name": "uq_users_mrn",
+          "unique": true,
+          "columns": [
+            "mrn"
+          ],
+          "expressions": null,
+          "where": null
+        }
+      ]
+    },
+    "verification_codes": {
+      "columns": [
+        {
+          "name": "code",
+          "type": "VARCHAR(6)",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "expires_at",
+          "type": "TIMESTAMP WITHOUT TIME ZONE",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('\"public\".verification_codes_id_seq'::regclass)"
+        },
+        {
+          "name": "is_verified",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "target_type",
+          "type": "verification_target_enum",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "target_value",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [],
+      "unique": [],
+      "checks": [],
+      "indexes": []
+    }
+  },
+  "enums": [
+    {
+      "name": "ai_risk_level_enum",
+      "labels": [
+        "LOW",
+        "MODERATE",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "name": "appointment_status_enum",
+      "labels": [
+        "REQUESTED",
+        "CONFIRMED",
+        "REJECTED",
+        "CANCELLED",
+        "COMPLETED",
+        "NO_SHOW"
+      ]
+    },
+    {
+      "name": "chat_sender_enum",
+      "labels": [
+        "user",
+        "assistant"
+      ]
+    },
+    {
+      "name": "clinical_alert_status_enum",
+      "labels": [
+        "TRIGGERED",
+        "ACKNOWLEDGED",
+        "RESOLVED",
+        "DISMISSED"
+      ]
+    },
+    {
+      "name": "clinical_conversation_status_enum",
+      "labels": [
+        "OPEN",
+        "AWAITING_DOCTOR",
+        "DOCTOR_RESPONDED",
+        "ESCALATED",
+        "RESOLVED"
+      ]
+    },
+    {
+      "name": "clinical_sender_type_enum",
+      "labels": [
+        "patient",
+        "doctor",
+        "assistant",
+        "system"
+      ]
+    },
+    {
+      "name": "clinical_urgency_enum",
+      "labels": [
+        "NORMAL",
+        "LOW_PRIORITY",
+        "MODERATE",
+        "HIGH_PRIORITY",
+        "EMERGENCY_REVIEW"
+      ]
+    },
+    {
+      "name": "doctor_dept_role_enum",
+      "labels": [
+        "MEMBER",
+        "RESPONDER",
+        "LEAD"
+      ]
+    },
+    {
+      "name": "doctor_status_enum",
+      "labels": [
+        "Active",
+        "OnLeave",
+        "Inactive"
+      ]
+    },
+    {
+      "name": "emergency_severity_enum",
+      "labels": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    {
+      "name": "emergency_status_enum",
+      "labels": [
+        "REQUESTED",
+        "ACKNOWLEDGED",
+        "ASSIGNED",
+        "IN_REVIEW",
+        "IN_TREATMENT",
+        "RESOLVED",
+        "CANCELLED"
+      ]
+    },
+    {
+      "name": "escalation_status_enum",
+      "labels": [
+        "NONE",
+        "PENDING_ACK",
+        "ACKNOWLEDGED",
+        "RESOLVED"
+      ]
+    },
+    {
+      "name": "extraction_validation_status_enum",
+      "labels": [
+        "VALID",
+        "NEEDS_REVIEW",
+        "FAILED"
+      ]
+    },
+    {
+      "name": "medical_report_status_enum",
+      "labels": [
+        "UPLOADED",
+        "OCR_EXTRACTED",
+        "VALIDATED",
+        "AI_PRE_ANALYZED",
+        "DOCTOR_REVIEWED",
+        "FINALIZED"
+      ]
+    },
+    {
+      "name": "model_status_enum",
+      "labels": [
+        "Active",
+        "Training",
+        "Deprecated",
+        "Idle"
+      ]
+    },
+    {
+      "name": "report_review_request_status_enum",
+      "labels": [
+        "PENDING",
+        "IN_REVIEW",
+        "COMPLETED",
+        "CANCELLED"
+      ]
+    },
+    {
+      "name": "report_source_enum",
+      "labels": [
+        "hospital",
+        "existing_upload"
+      ]
+    },
+    {
+      "name": "review_status_enum",
+      "labels": [
+        "APPROVED",
+        "MODIFIED",
+        "REJECTED"
+      ]
+    },
+    {
+      "name": "user_role_enum",
+      "labels": [
+        "user",
+        "admin",
+        "patient",
+        "doctor",
+        "department_admin",
+        "hospital_admin",
+        "emergency_doctor"
+      ]
+    },
+    {
+      "name": "verification_target_enum",
+      "labels": [
+        "email",
+        "mobile"
+      ]
+    }
+  ],
+  "mrn_function": "CREATE OR REPLACE FUNCTION public.assign_and_protect_patient_mrn() RETURNS trigger LANGUAGE plpgsql AS $function$ BEGIN IF TG_OP = 'UPDATE' THEN IF OLD.mrn IS NOT NULL AND NEW.mrn IS DISTINCT FROM OLD.mrn THEN RAISE EXCEPTION 'patient MRN is immutable'; END IF; IF OLD.mrn IS NULL AND NEW.role::text IN ('user', 'patient') THEN NEW.mrn := 'HMS-' || lpad(nextval('patient_mrn_seq')::text, 8, '0'); ELSIF OLD.mrn IS NULL AND NEW.mrn IS NOT NULL THEN RAISE EXCEPTION 'MRN is reserved for patient records'; END IF; RETURN NEW; END IF; IF NEW.role::text IN ('user', 'patient') THEN IF NEW.mrn IS NOT NULL THEN RAISE EXCEPTION 'patient MRN is database generated'; END IF; NEW.mrn := 'HMS-' || lpad(nextval('patient_mrn_seq')::text, 8, '0'); ELSIF NEW.mrn IS NOT NULL THEN RAISE EXCEPTION 'MRN is reserved for patient records'; END IF; RETURN NEW; END; $function$",
+  "mrn_trigger": "CREATE TRIGGER users_patient_mrn_guard BEFORE INSERT OR UPDATE OF mrn, role ON public.users FOR EACH ROW EXECUTE FUNCTION assign_and_protect_patient_mrn()",
+  "mrn_sequence": [
+    1,
+    1,
+    9223372036854775807,
+    1,
+    false
+  ]
+}

@@ -10,6 +10,9 @@ import { getPatientClinicalSummary, getConversationWithPatient, sendMessageToPat
 import { getPatientReports, createHospitalReport } from '../../services/medicalReportsService';
 import AIAnalysisCard from '../../components/AIAnalysisCard';
 import { useAuth } from '../../context/AuthContext';
+import EncounterHistory from './EncounterHistory';
+import MedicalHistoryTimeline from '../../components/MedicalHistoryTimeline';
+import { clinicalWriteError } from '../clinicalWriteErrors';
 
 const DoctorPatientView = () => {
   const { patientId } = useParams();
@@ -20,11 +23,14 @@ const DoctorPatientView = () => {
   const [reports, setReports] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [chartError, setChartError] = useState('');
+  const [sectionError, setSectionError] = useState('');
   const [activeTab, setActiveTab] = useState('reports'); // 'reports', 'consultations', 'messages', 'new_report'
 
   // Messaging state
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState('');
 
   // New Hospital Report state
   const [reportTitle, setReportTitle] = useState('');
@@ -40,20 +46,33 @@ const DoctorPatientView = () => {
 
   const loadAllPatientData = async () => {
     setLoading(true);
+    setChartError('');
+    setSectionError('');
     try {
-      const [patData, repData, msgData, docData] = await Promise.all([
-        getPatientClinicalSummary(patientId).catch(() => null),
-        getPatientReports(patientId).catch(() => []),
-        getConversationWithPatient(patientId).catch(() => []),
-        getDoctorProfile().catch(() => null)
-      ]);
-
+      const patData = await getPatientClinicalSummary(patientId);
       setPatient(patData);
-      setReports(repData || []);
-      setMessages(msgData || []);
-      setDoctorProfile(docData);
+      if (patData.access_scope !== 'clinical') {
+        setReports([]);
+        setMessages([]);
+        setDoctorProfile(null);
+        setActiveTab('consultations');
+      } else {
+        const [repData, msgData, docData] = await Promise.allSettled([
+          getPatientReports(patientId), getConversationWithPatient(patientId), getDoctorProfile()
+        ]);
+        setReports(repData.status === 'fulfilled' ? repData.value || [] : []);
+        setMessages(msgData.status === 'fulfilled' ? msgData.value || [] : []);
+        setDoctorProfile(docData.status === 'fulfilled' ? docData.value : null);
+        if (repData.status === 'rejected' || msgData.status === 'rejected') {
+          setSectionError('Some clinical sections could not be loaded. Refresh the chart before relying on them.');
+        }
+      }
     } catch (err) {
       console.error('Error loading patient chart:', err);
+      setPatient(null);
+      setChartError(err?.response?.status === 403 || err?.response?.status === 404
+        ? 'This patient chart is unavailable to your account.'
+        : 'Patient chart could not be loaded. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -64,6 +83,7 @@ const DoctorPatientView = () => {
     if (!newMessage.trim() || !doctorProfile) return;
 
     setSendingMessage(true);
+    setMessageError('');
     try {
       await sendMessageToPatient({
         doctor_id: doctorProfile.id,
@@ -75,6 +95,7 @@ const DoctorPatientView = () => {
       setMessages(updatedMessages || []);
     } catch (err) {
       console.error('Failed to send message:', err);
+      setMessageError(clinicalWriteError(err, 'message'));
     } finally {
       setSendingMessage(false);
     }
@@ -105,7 +126,7 @@ const DoctorPatientView = () => {
       setTimeout(() => setActiveTab('reports'), 1500);
     } catch (err) {
       console.error('Failed to create hospital report:', err);
-      setReportStatusMsg({ type: 'error', text: 'Failed to issue hospital medical report.' });
+      setReportStatusMsg({ type: 'error', text: clinicalWriteError(err, 'report') });
     } finally {
       setSubmittingReport(false);
     }
@@ -125,7 +146,7 @@ const DoctorPatientView = () => {
       <div className="p-8 max-w-4xl mx-auto text-center space-y-4">
         <AlertTriangle size={36} className="text-amber-500 mx-auto" />
         <h2 className="text-lg font-bold text-slate-800">Patient Chart Not Found</h2>
-        <p className="text-xs text-slate-500">Could not locate patient clinical records for ID #{patientId}.</p>
+        <p className="text-xs text-slate-500">{chartError || 'Patient chart is unavailable.'}</p>
         <Link to="/doctor/appointments" className="inline-block px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold">
           ← Return to Appointments Roster
         </Link>
@@ -133,12 +154,15 @@ const DoctorPatientView = () => {
     );
   }
 
+  const hasClinicalAccess = patient.access_scope === 'clinical';
   const profileData = patient.profile_data || {};
   const clinicalInfo = profileData.clinical || {};
   const emergencyInfo = profileData.emergency || {};
 
   return (
     <div className="p-5 md:p-8 max-w-7xl mx-auto space-y-6">
+      {!hasClinicalAccess && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Preparation access for a confirmed appointment. Clinical history and report actions become available only during an assigned active visit.</p>}
+      {sectionError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{sectionError}</p>}
       {/* Navigation breadcrumb */}
       <div className="flex items-center justify-between">
         <Link 
@@ -163,7 +187,7 @@ const DoctorPatientView = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl md:text-2xl font-black text-slate-900">{patient.full_name}</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-100 text-teal-800 tracking-wider">
-                  Blood Group: {patient.blood_group || 'O+'}
+                  Blood Group: {patient.blood_group || 'Unknown'}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
                   {patient.role || 'Patient'}
@@ -190,7 +214,7 @@ const DoctorPatientView = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {hasClinicalAccess && <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab('new_report')}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0F9D8A] hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
@@ -205,33 +229,37 @@ const DoctorPatientView = () => {
               <MessageSquare size={15} />
               <span>Clinical Chat ({messages.length})</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Clinical Alerts / Chronic Conditions row if recorded */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-slate-100">
+        {hasClinicalAccess && <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-slate-100">
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Known Allergies</span>
-            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.allergies || 'No known drug allergies reported'}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Legacy allergy text (unverified)</span>
+            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.allergies || 'Not verified in this chart'}</p>
           </div>
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Chronic Medical Conditions</span>
-            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.chronic_conditions || 'None documented on chart'}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Legacy conditions (unverified)</span>
+            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.chronic_conditions || 'No legacy text recorded'}</p>
           </div>
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Current Prescribed Medications</span>
-            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.current_medications || 'No active routine prescriptions'}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Legacy medication text (unverified)</span>
+            <p className="text-xs font-semibold text-slate-800">{clinicalInfo.current_medications || 'No legacy text recorded'}</p>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto custom-scrollbar">
         {[
-          { id: 'reports', label: 'Medical Reports & AI Analysis', count: reports.length, icon: <FileText size={15} /> },
+          ...(hasClinicalAccess ? [{ id: 'reports', label: 'Medical Reports & AI Analysis', count: reports.length, icon: <FileText size={15} /> }] : []),
           { id: 'consultations', label: 'Consultation Roster', count: patient.appointments?.length || 0, icon: <Calendar size={15} /> },
-          { id: 'messages', label: 'Clinical Messaging', count: messages.length, icon: <MessageSquare size={15} /> },
-          { id: 'new_report', label: 'Issue Official Report', icon: <PlusCircle size={15} /> }
+          ...(hasClinicalAccess ? [
+            { id: 'history', label: 'Medical History', icon: <FileText size={15} /> },
+            { id: 'encounters', label: 'Encounter History', icon: <Activity size={15} /> },
+            { id: 'messages', label: 'Clinical Messaging', count: messages.length, icon: <MessageSquare size={15} /> },
+            { id: 'new_report', label: 'Issue Official Report', icon: <PlusCircle size={15} /> }
+          ] : [])
         ].map((tab) => {
           const isSelected = activeTab === tab.id;
           return (
@@ -384,6 +412,10 @@ const DoctorPatientView = () => {
         </div>
       )}
 
+      {/* Encounter history is distinct from appointment records and reports. */}
+      {hasClinicalAccess && activeTab === 'history' && <MedicalHistoryTimeline key={patientId} patientId={patientId} />}
+      {activeTab === 'encounters' && <EncounterHistory key={patientId} patientId={patientId} />}
+
       {/* TAB 3: Clinical Messaging */}
       {activeTab === 'messages' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden flex flex-col h-[520px]">
@@ -430,6 +462,7 @@ const DoctorPatientView = () => {
           </div>
 
           {/* Input */}
+          {messageError && <p role="alert" className="px-4 py-2 text-xs text-rose-800 bg-rose-50">{messageError}</p>}
           <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-100 bg-white flex items-center gap-2">
             <input
               type="text"

@@ -1,40 +1,40 @@
 import os
 import psycopg
 from psycopg.rows import dict_row
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 # =========================
 # Database Configuration
 # =========================
 
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_USER = os.getenv("DB_USER", "health_analyzer_user")
-DB_PASS = os.getenv("DB_PASS", "admin")
-DB_NAME = os.getenv("DB_NAME", "health_analyzer")
-DB_PORT = int(os.getenv("DB_PORT", 5432))
+DATABASE_URL = os.getenv("HMS_DATABASE_URL")
+if DATABASE_URL:
+    parsed_url = make_url(DATABASE_URL)
+    if parsed_url.drivername != "postgresql+psycopg" or not parsed_url.database:
+        raise RuntimeError("HMS_DATABASE_URL must be an explicit postgresql+psycopg database URL")
+else:
+    parsed_url = None
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"postgresql+psycopg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+
+def require_database_url():
+    if parsed_url is None:
+        raise RuntimeError("Set HMS_DATABASE_URL explicitly before using the application database")
+    return parsed_url
 
 # =========================
 # SQLAlchemy Engine
 # =========================
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    echo=False
-)
+engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20,
+                       pool_pre_ping=True, echo=False) if DATABASE_URL else None
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 # ✅ SQLAlchemy Session Generator
 def get_db():
+    require_database_url()
     db = SessionLocal()
     try:
         yield db
@@ -44,6 +44,7 @@ def get_db():
 
 # ✅ ADD THIS (for Alembic compatibility)
 def get_sqlalchemy_engine():
+    require_database_url()
     return engine
 
 
@@ -109,16 +110,11 @@ class PgConnectionWrapper:
 def get_db_connection():
     """Returns a PostgreSQL connection wrapped for backward compatibility"""
     try:
-        conn = psycopg.connect(
-            host=DB_HOST,
-            user=DB_USER,
-            password=DB_PASS,
-            dbname=DB_NAME,
-            port=DB_PORT
-        )
+        url = require_database_url().set(drivername="postgresql").render_as_string(hide_password=False)
+        conn = psycopg.connect(url)
         return PgConnectionWrapper(conn)
-    except Exception as e:
-        print(f"❌ PostgreSQL connection error: {e}")
+    except Exception:
+        print("PostgreSQL connection is unavailable; check HMS_DATABASE_URL")
         return None
 
 
@@ -126,17 +122,45 @@ def get_db_connection():
 # Database Initialization
 # =========================
 
+def require_current_schema():
+    """Read-only readiness check; schema changes belong to Alembic/bootstrap."""
+    from pathlib import Path
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from src.schema_registry import current_metadata, validated_module_ddl
+
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    validated_module_ddl()
+    with get_sqlalchemy_engine().connect() as connection:
+        with connection.begin():
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+            inspector = inspect(connection)
+            if not inspector.has_table("alembic_version", schema="public"):
+                raise RuntimeError("Database is not initialized. Use the guarded fresh bootstrap or an assessed Alembic upgrade.")
+            revisions = connection.execute(text("SELECT version_num FROM public.alembic_version")).scalars().all()
+            if revisions != heads:
+                raise RuntimeError("Database revision is not current. Run the approved Alembic upgrade before starting the API.")
+            for table in current_metadata().sorted_tables:
+                if not inspector.has_table(table.name, schema="public"):
+                    raise RuntimeError(f"Database schema is incomplete: public.{table.name} is missing.")
+                actual = {column["name"] for column in inspector.get_columns(table.name, schema="public")}
+                if missing := set(table.columns.keys()) - actual:
+                    raise RuntimeError(f"Database schema is incomplete: public.{table.name} is missing {sorted(missing)}.")
+                indexes = {item["name"] for item in inspector.get_indexes(table.name, schema="public")}
+                if missing := {index.name for index in table.indexes} - indexes:
+                    raise RuntimeError(f"Database schema is incomplete: public.{table.name} indexes missing {sorted(missing)}.")
+
+
 def init_db():
     """
-    Initializes PostgreSQL database and tables using SQLAlchemy metadata.
+    Explicit, backward-compatible entry point to seed an already migrated database.
+    It no longer creates tables or conceals readiness failures.
     """
-    print("Initializing PostgreSQL database...")
+    require_current_schema()
+    print("Seeding initialized PostgreSQL database...")
     try:
-        from src.models import Base, Department, ClinicalRoutingRule
-        
-        # Create all tables in PostgreSQL
-        Base.metadata.create_all(bind=engine)
-        print("SQLAlchemy tables checked/created in PostgreSQL.")
+        from src.models import Department, ClinicalRoutingRule
 
         # Seed default departments if table is empty
         db = SessionLocal()
@@ -200,6 +224,7 @@ def init_db():
         print("[OK] Database initialization complete.")
     except Exception as e:
         print(f"[ERROR] Database initialization error: {e}")
+        raise
 
 
 if __name__ == "__main__":

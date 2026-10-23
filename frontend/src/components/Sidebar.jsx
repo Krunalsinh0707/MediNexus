@@ -3,8 +3,8 @@ import { NavLink, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, Activity, Heart, FileText, Clock, User, X, LogOut, 
   Cpu, ShieldCheck, Database, Brain, Layers,
-  UserCheck, BarChart3, Calendar, Settings, AlertOctagon,
-  Building, Zap, Droplets, MessageSquare
+  UserCheck, BarChart3, Calendar, Settings, AlertOctagon, Package,
+  Building, Zap, Droplets, MessageSquare, Pill, BedDouble
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,6 +13,7 @@ const Sidebar = ({ onClose }) => {
   const role = user?.role || 'patient';
   const isDoctor = role === 'doctor' || role === 'emergency_doctor';
   const isAdmin = role === 'admin' || role === 'hospital_admin' || role === 'department_admin';
+  const isDepartmentAdmin = role === 'department_admin';
 
   let sections = [];
 
@@ -29,7 +30,9 @@ const Sidebar = ({ onClose }) => {
         items: [
           { path: '/doctor/clinical-chat', name: 'Clinical Chat Console', icon: <MessageSquare size={18} /> },
           { path: '/doctor/appointments', name: 'Consultations & Triage', icon: <Calendar size={18} /> },
+          { path: '/workforce', name: 'My Shifts', icon: <Clock size={18} /> },
           { path: '/doctor/reports', name: 'Clinical Review Queue', icon: <ShieldCheck size={18} /> },
+          { path: '/inpatient', name: 'Inpatient Care', icon: <BedDouble size={18} /> },
           { path: '/emergency', name: 'Emergency Queue', icon: <Activity size={18} /> },
           { path: '/departments', name: 'Hospital Departments', icon: <Building size={18} /> },
         ]
@@ -47,16 +50,25 @@ const Sidebar = ({ onClose }) => {
       {
         title: 'ADMINISTRATION',
         items: [
-          { path: '/dashboard', name: 'Hospital Overview', icon: <LayoutDashboard size={18} /> },
+          { path: '/admin/dashboard', name: 'Hospital Overview', icon: <LayoutDashboard size={18} /> },
           { path: '/admin', name: 'System Control', icon: <Database size={18} /> },
         ]
       },
       {
         title: 'HOSPITAL MANAGEMENT',
         items: [
+          ...(isDepartmentAdmin ? [{ path: '/pharmacy', name: 'Pharmacy Queue', icon: <Pill size={18} /> }] : []),
+          ...(isDepartmentAdmin ? [{ path: '/laboratory', name: 'Laboratory Queue', icon: <Droplets size={18} /> }] : []),
+          ...(isDepartmentAdmin ? [{ path: '/radiology', name: 'Radiology Queue', icon: <Zap size={18} /> }] : []),
+          { path: '/inpatient', name: 'Inpatient Operations', icon: <BedDouble size={18} /> },
+          ...(isDepartmentAdmin ? [{ path: '/nursing', name: 'Nursing Station', icon: <Heart size={18} /> }] : []),
+          ...(isDepartmentAdmin ? [{ path: '/billing', name: 'Billing', icon: <FileText size={18} /> }] : []),
+          ...(isDepartmentAdmin ? [{ path: '/insurance', name: 'Insurance & Claims', icon: <ShieldCheck size={18} /> }] : []),
+          ...(isDepartmentAdmin ? [{ path: '/inventory', name: 'Inventory', icon: <Package size={18} /> }] : []),
+          { path: '/workforce', name: isDepartmentAdmin ? 'My Shifts' : 'Staff & Workforce', icon: <UserCheck size={18} /> },
           { path: '/departments', name: 'Departments', icon: <Database size={18} /> },
           { path: '/emergency', name: 'Emergency Queue', icon: <Activity size={18} /> },
-          { path: '/my-reports', name: 'Medical Records', icon: <FileText size={18} /> },
+          { path: '/admin/patients', name: 'Medical Records', icon: <FileText size={18} /> },
         ]
       },
       {
@@ -77,6 +89,9 @@ const Sidebar = ({ onClose }) => {
           { path: '/analytics', name: 'My health', icon: <Activity size={18} /> },
           { path: '/reports', name: 'Medical reports', icon: <FileText size={18} /> },
           { path: '/appointments', name: 'Appointments', icon: <Calendar size={18} /> },
+          { path: '/my-visits', name: 'Visit summaries', icon: <FileText size={18} /> },
+          { path: '/my-billing', name: 'My billing', icon: <FileText size={18} /> },
+          { path: '/my-insurance', name: 'My insurance', icon: <ShieldCheck size={18} /> },
           { path: '/doctors', name: 'Care team', icon: <UserCheck size={18} /> },
           { path: '/departments', name: 'Departments', icon: <Building size={18} /> },
         ]

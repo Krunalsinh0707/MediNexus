@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Activity, Users, AlertTriangle, Settings, RefreshCw, Search, 
   ChevronRight, X, FileText, CheckCircle, Clock, Heart, 
   Droplets, Zap, ShieldCheck, Database, Layout, 
   TrendingUp, TrendingDown, Bell, LogOut, Terminal, Cpu, Cloud, Download,
-  Filter, MoreVertical, Server, HardDrive, Shield, BellRing
+  Filter, MoreVertical, Server, HardDrive, Shield, BellRing, Calendar
 } from "lucide-react";
 import { 
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, 
@@ -16,6 +16,9 @@ import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import { useNotification } from "../context/NotificationContext";
 import VERSION_CONFIG from "../config/versionConfig";
+import PatientRegistry from "./PatientRegistry";
+import EncounterQueue from "./admin/EncounterQueue";
+import EncounterDetail from "./admin/EncounterDetail";
 import "./admin.css";
 
 // --- Mock Data Generator ---
@@ -44,6 +47,7 @@ const MOCK_MODELS = [
 
 const AdminSidebar = () => {
   const { user, logout } = useAuth();
+  const canManagePatients = ["admin", "hospital_admin"].includes((user?.role || "").toLowerCase());
   
   const menuSections = [
     {
@@ -51,6 +55,8 @@ const AdminSidebar = () => {
       items: [
         { name: "Overview", icon: <Layout size={18} />, path: "/admin" },
         { name: "Patient Directory", icon: <Users size={18} />, path: "/admin/patients" },
+        ...(canManagePatients ? [{ name: "Patient Registry", icon: <Users size={18} />, path: "/admin/registry" }] : []),
+        ...(canManagePatients ? [{ name: "Encounter Queue", icon: <Calendar size={18} />, path: "/admin/encounters" }] : []),
       ]
     },
     {
@@ -684,16 +690,24 @@ const GlobalSettings = () => {
 const AdminPage = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const { showNotification } = useNotification();
+  const { user } = useAuth();
+  const canManagePatients = ["admin", "hospital_admin"].includes((user?.role || "").toLowerCase());
   const location = useLocation();
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const response = await api.get("/reports/admin");
-      setPatients(response.data.patients || []);
+      if (!Array.isArray(response.data?.patients)) {
+        throw new Error("The patient directory returned an invalid response.");
+      }
+      setPatients(response.data.patients);
       showNotification("Clinical Data Synchronized", "success");
     } catch (err) {
+      setLoadError(err.message || "Unable to load the patient directory.");
       showNotification("Sync Failed", "error");
     } finally {
       setLoading(false);
@@ -718,6 +732,8 @@ const AdminPage = () => {
   const pageTitle = useMemo(() => {
     const path = location.pathname;
     if (path === "/admin") return "System Overview";
+    if (path.includes("registry")) return "Patient Registry";
+    if (path.includes("encounters")) return "Encounter Queue";
     if (path.includes("patients")) return "Patient Intelligence Directory";
     if (path.includes("models")) return "AI Model Monitoring";
     if (path.includes("alerts")) return "Risk Alerts Center";
@@ -754,10 +770,16 @@ const AdminPage = () => {
         </header>
 
         <div className="admin-content-wrap custom-scrollbar">
+          {loadError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            Patient data could not be loaded: {loadError} <button type="button" onClick={fetchData} className="ml-2 font-bold underline">Retry</button>
+          </div>}
           <Routes>
             <Route path="/" element={<AdminOverview patients={patients} metrics={metrics} loading={loading} fetchData={fetchData} />} />
             <Route path="/dashboard" element={<AdminOverview patients={patients} metrics={metrics} loading={loading} fetchData={fetchData} />} />
             <Route path="/patients" element={<PatientDirectory patients={patients} />} />
+            <Route path="/registry" element={canManagePatients ? <PatientRegistry /> : <Navigate to="/admin" replace />} />
+            <Route path="/encounters" element={canManagePatients ? <EncounterQueue /> : <Navigate to="/admin" replace />} />
+            <Route path="/encounters/:encounterId" element={canManagePatients ? <EncounterDetail /> : <Navigate to="/admin" replace />} />
             <Route path="/models" element={<ModelMonitoring />} />
             <Route path="/alerts" element={<RiskAlertsCenter patients={patients} />} />
             <Route path="/pipeline" element={<DataPipeline />} />
@@ -770,4 +792,32 @@ const AdminPage = () => {
   );
 };
 
-export default AdminPage;
+class AdminPageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("Administrator page failed to render", error);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <div role="alert" className="min-h-screen bg-slate-50 p-8 text-slate-800">
+        <h1 className="text-xl font-bold">The administrator page could not be displayed.</h1>
+        <p className="mt-2 text-sm">Please retry. If the problem continues, contact support.</p>
+        <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white">Retry</button>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+
+export default function AdminPageWithErrorBoundary() {
+  return <AdminPageErrorBoundary><AdminPage /></AdminPageErrorBoundary>;
+}

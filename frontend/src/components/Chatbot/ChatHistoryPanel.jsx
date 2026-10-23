@@ -1,7 +1,7 @@
 import React from 'react';
-import { Plus, MessageSquare, Trash2, X } from 'lucide-react';
+import { Plus, MessageSquare, Archive, X } from 'lucide-react';
 
-const ChatHistoryPanel = ({ conversations, activeId, onSelectConv, onNewConv, onDeleteConv, onClose }) => {
+const ChatHistoryPanel = ({ conversations, activeId, onSelectConv, onNewConv, onDeleteConv, onClose, error }) => {
   return (
     <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-md z-20 text-white p-4 flex flex-col">
       <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -10,6 +10,8 @@ const ChatHistoryPanel = ({ conversations, activeId, onSelectConv, onNewConv, on
           <X size={18} />
         </button>
       </div>
+
+      {error && <p role="alert" className="mt-3 rounded-lg bg-rose-900/40 p-2 text-xs text-rose-100">{error}</p>}
 
       <div className="mt-4">
         <button
@@ -31,16 +33,17 @@ const ChatHistoryPanel = ({ conversations, activeId, onSelectConv, onNewConv, on
               <MessageSquare size={14} className="shrink-0 text-teal-400" />
               <span className="text-xs font-bold truncate">{conv.title || 'Conversation'}</span>
             </div>
-            <button
+            {conv.status === 'RESOLVED' && <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDeleteConv(conv.id);
               }}
               className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
-              title="Delete Chat"
+              title="Hide resolved chat; clinical history is retained"
+              aria-label="Hide resolved chat"
             >
-              <Trash2 size={14} />
-            </button>
+              <Archive size={14} />
+            </button>}
           </div>
         ))}
 

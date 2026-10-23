@@ -1,26 +1,40 @@
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, Enum, Text, Boolean
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, Enum, Text, Boolean, Date, text, Index, CheckConstraint
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import datetime
 
-class Base(DeclarativeBase):
-    pass
+from src.model_base import Base
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    email = Column(String(255), unique=True, nullable=False)
-    mobile_no = Column(String(20), unique=True, nullable=False)
-    blood_group = Column(String(5), nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    mobile_no = Column(String(20), nullable=True)
+    blood_group = Column(String(5), nullable=True)
+    password_hash = Column(String(255), nullable=True)
     full_name = Column(String(255), nullable=False)
+    mrn = Column(String(32), nullable=True)
+    date_of_birth = Column(Date, nullable=True)
     role = Column(Enum('user', 'admin', 'patient', 'doctor', 'department_admin', 'hospital_admin', 'emergency_doctor', name='user_role_enum'), default='patient')
     email_verified = Column(Integer, default=1)
     mobile_verified = Column(Integer, default=1)
-    profile_data = Column(JSON, nullable=True, default={})
+    profile_data = Column(JSON, nullable=True, default={}, server_default=text("'{}'::jsonb"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "password_hash IS NULL OR (email IS NOT NULL AND mobile_no IS NOT NULL)",
+            name="ck_users_credentialed_accounts_have_contacts",
+        ),
+        Index("uq_users_credentialed_email_normalized", text("lower(btrim(email))"), unique=True,
+              postgresql_where=text("password_hash IS NOT NULL AND email IS NOT NULL")),
+        Index("uq_users_credentialed_mobile_normalized",
+              text("regexp_replace(mobile_no, '[^0-9]', '', 'g')"), unique=True,
+              postgresql_where=text("password_hash IS NOT NULL AND mobile_no IS NOT NULL")),
+        Index("uq_users_mrn", "mrn", unique=True),
+    )
 
     patient_reports = relationship("PatientReport", back_populates="user")
     cbc_reports = relationship("CbcReport", back_populates="user")
@@ -137,6 +151,39 @@ class DoctorReview(Base):
     reviewed_at = Column(DateTime(timezone=True), server_default=func.now())
 
     report = relationship("MedicalReport", back_populates="doctor_review")
+
+
+class MedicalReviewRevision(Base):
+    """Signed, append-only amendment; DoctorReview remains the original review."""
+    __tablename__ = "medical_review_revisions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_id = Column(Integer, ForeignKey("medical_reports.id", ondelete="RESTRICT"), nullable=False)
+    original_review_id = Column(Integer, ForeignKey("doctor_reviews.id", ondelete="RESTRICT"), nullable=False)
+    revision_number = Column(Integer, nullable=False)
+    previous_revision_id = Column(Integer, ForeignKey("medical_review_revisions.id", ondelete="RESTRICT"), nullable=True)
+    author_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    author_doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="RESTRICT"), nullable=False)
+    review_status = Column(Enum('APPROVED', 'MODIFIED', 'REJECTED', name='review_status_enum'), nullable=False)
+    clinical_notes = Column(Text, nullable=True)
+    final_assessment = Column(Text, nullable=True)
+    corrected_parameters = Column(JSON, nullable=True)
+    amendment_reason = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    signed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("revision_number >= 2", name="ck_medical_review_revision_number"),
+        CheckConstraint("length(btrim(amendment_reason)) > 0", name="ck_medical_review_revision_reason"),
+        CheckConstraint("(revision_number = 2 AND previous_revision_id IS NULL) OR "
+                        "(revision_number > 2 AND previous_revision_id IS NOT NULL)",
+                        name="ck_medical_review_revision_predecessor"),
+        Index("uq_medical_review_revision_number", "report_id", "revision_number", unique=True),
+        Index("uq_medical_review_revision_previous", "previous_revision_id", unique=True),
+        Index("ix_medical_review_revisions_original_review_id", "original_review_id"),
+        Index("ix_medical_review_revisions_author_user_id", "author_user_id"),
+        Index("ix_medical_review_revisions_author_doctor_id", "author_doctor_id"),
+    )
 
 class MedicalRecord(Base):
     __tablename__ = "medical_records"
@@ -525,13 +572,22 @@ class ReportReviewRequest(Base):
     status = Column(
         Enum('PENDING', 'IN_REVIEW', 'COMPLETED', 'CANCELLED', name='report_review_request_status_enum'),
         default='PENDING',
+        nullable=False,
+        server_default=text("'PENDING'::report_review_request_status_enum"),
         index=True
     )
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     report = relationship("MedicalReport", foreign_keys=[report_id])
     patient = relationship("User", foreign_keys=[patient_id])
     doctor = relationship("Doctor", foreign_keys=[doctor_id])
+
+
+# Register additive encounter tables in the same metadata used by fresh bootstrap.
+from src.encounter_models import (  # noqa: E402,F401
+    Encounter, EncounterNote, EncounterVitals, EncounterDiagnosis,
+    PatientAllergy, EncounterAllergyReview,
+)

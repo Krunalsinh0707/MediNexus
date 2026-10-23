@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends
+from sqlalchemy import func
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
@@ -12,9 +13,9 @@ load_dotenv()
 from src.config.version_config import VERSION_CONFIG
 
 # Internal Module Imports
-from src.database import get_db_connection, init_db, SessionLocal, engine
-from src.auth import get_password_hash
-from src.models import User as DBUser, Base, PasswordResetOTP
+from src.database import get_db_connection, init_db, require_current_schema, SessionLocal
+from src.auth import IS_PRODUCTION, get_password_hash
+from src.models import User as DBUser, PasswordResetOTP
 
 # Router Imports
 from src.routers import (
@@ -32,16 +33,47 @@ from src.routers import (
     communication_router,
     analytics_router,
     notifications_router,
-    clinical_chat_router
+    clinical_chat_router,
+    patients_router,
+    encounters_router,
+    medical_history_router,
+    clinical_orders_router,
+    medication_orders_router,
+    pharmacy_router,
+    laboratory_router,
+    radiology_router,
+    inpatient_router,
+    nursing_router,
+    billing_router,
+    insurance_router,
+    inventory_router,
+    workforce_router
 )
 
+def configured_default_admin_password():
+    admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+    if not admin_password or not admin_password.strip():
+        raise RuntimeError(
+            "Set DEFAULT_ADMIN_PASSWORD before enabling default-admin creation."
+        )
+    if IS_PRODUCTION and len(admin_password) < 16:
+        raise RuntimeError(
+            "Production default-admin creation requires an explicit "
+            "DEFAULT_ADMIN_PASSWORD of at least 16 characters."
+        )
+    return admin_password
+
+
 def create_default_admin():
+    admin_password = configured_default_admin_password()
     db = SessionLocal()
     try:
         admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@gmail.com")
-        admin = db.query(DBUser).filter(DBUser.email == admin_email).first()
+        admin = db.query(DBUser).filter(
+            func.lower(func.btrim(DBUser.email)) == admin_email.strip().lower(),
+            DBUser.password_hash.is_not(None),
+        ).first()
         if not admin:
-            admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin@123")
             hashed_password = get_password_hash(admin_password)
             new_admin = DBUser(
                 email=admin_email,
@@ -56,20 +88,26 @@ def create_default_admin():
             print("✅ Default admin user created successfully.")
         else:
             print("ℹ️ Default admin user already exists. Skipping creation.")
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print(f"❌ Error creating default admin user: {e}")
+        print("❌ Error creating default admin user.")
+        raise
     finally:
         db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_default_admin()
+    seed_defaults = os.getenv("HMS_SEED_DEFAULTS", "false").lower() == "true"
+    if seed_defaults:
+        configured_default_admin_password()
+    require_current_schema()
+    # Explicit opt-in retains the existing department/routing/admin seed behavior.
+    if seed_defaults:
+        init_db()
+        create_default_admin()
     yield
 
-# ---------------- INITIALIZE DATABASE & TABLES ----------------
-init_db()
-Base.metadata.create_all(bind=engine)
+# Schema initialization is explicit; importing the API never creates tables.
 
 # ---------------- APP CONFIG ----------------
 app = FastAPI(
@@ -149,6 +187,20 @@ app.include_router(communication_router.router)
 app.include_router(analytics_router.router)
 app.include_router(notifications_router.router)
 app.include_router(clinical_chat_router.router)
+app.include_router(patients_router.router)
+app.include_router(encounters_router.router)
+app.include_router(medical_history_router.router)
+app.include_router(clinical_orders_router.router)
+app.include_router(medication_orders_router.router)
+app.include_router(pharmacy_router.router)
+app.include_router(laboratory_router.router)
+app.include_router(radiology_router.router)
+app.include_router(inpatient_router.router)
+app.include_router(nursing_router.router)
+app.include_router(billing_router.router)
+app.include_router(insurance_router.router)
+app.include_router(inventory_router.router)
+app.include_router(workforce_router.router)
 
 from sqlalchemy import text
 from src.database import get_db

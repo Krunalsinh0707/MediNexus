@@ -7,6 +7,7 @@ import ChatWindow from './ChatWindow';
 import ChatInput from './ChatInput';
 import SuggestedQuestions from './SuggestedQuestions';
 import ChatHistoryPanel from './ChatHistoryPanel';
+import { clinicalWriteError } from '../../pages/clinicalWriteErrors';
 
 const ChatbotDrawer = () => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ const ChatbotDrawer = () => {
   ]);
   const [inputMsg, setInputMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   // Fetch consultation sessions when drawer opens
   useEffect(() => {
@@ -86,6 +88,7 @@ const ChatbotDrawer = () => {
   };
 
   const handleDeleteSession = async (convId) => {
+    setHistoryError('');
     try {
       await clinicalChatService.deleteConversation(convId);
       if (activeConvId === convId) {
@@ -99,6 +102,7 @@ const ChatbotDrawer = () => {
       fetchConversations();
     } catch (err) {
       console.error("Failed to delete consultation session", err);
+      setHistoryError(clinicalWriteError(err, 'hide'));
     }
   };
 
@@ -231,6 +235,7 @@ const ChatbotDrawer = () => {
                 onSelectConv={fetchSessionMessages}
                 onNewConv={handleNewSession}
                 onDeleteConv={handleDeleteSession}
+                error={historyError}
                 onClose={() => setShowHistory(false)}
               />
             )}

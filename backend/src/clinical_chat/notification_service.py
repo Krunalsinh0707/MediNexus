@@ -82,7 +82,10 @@ class ClinicalNotificationService:
                 DoctorDepartmentMembership.is_active == True,
                 DoctorDepartmentMembership.role.in_(["RESPONDER", "LEAD"])
             ).all()
+            from src.workforce_service import source_assignment_current
             for m in memberships:
+                if not source_assignment_current(db, "DOCTOR", m.id):
+                    continue
                 doc = db.query(Doctor).filter(Doctor.id == m.doctor_id).first()
                 if doc and doc.user_id:
                     recipient_user_ids.add(doc.user_id)
